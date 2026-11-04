@@ -352,12 +352,14 @@ data class PartyUi(
 sealed interface LyricsTranslationResult {
     data class Translated(val lines: List<LyricLine>) : LyricsTranslationResult
     data class SameLanguage(val language: String) : LyricsTranslationResult
+    data class RateLimited(val retryAfterMillis: Long, val lines: List<LyricLine>? = null) : LyricsTranslationResult
     data object Unavailable : LyricsTranslationResult
 }
 
 sealed interface LyricsRomanizationResult {
     data class Romanized(val lines: List<LyricLine>) : LyricsRomanizationResult
     data object AlreadyRomanized : LyricsRomanizationResult
+    data class RateLimited(val retryAfterMillis: Long) : LyricsRomanizationResult
     data object Unavailable : LyricsRomanizationResult
 }
 

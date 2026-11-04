@@ -497,6 +497,7 @@ private val CONTROLS_SCROLL_SLOP = 20.dp
 private const val LYRICS_UNAVAILABLE_HOLD_MS = 5_000L
 private const val LYRICS_UNAVAILABLE_FADE_MS = 900
 internal sealed interface LyricsTranslationUiState {
+    data class RateLimited(val retryAfterMillis: Long, val lines: List<LyricLine>? = null) : LyricsTranslationUiState
     data object Idle : LyricsTranslationUiState
     data object Loading : LyricsTranslationUiState
     data class Ready(val lines: List<LyricLine>) : LyricsTranslationUiState
@@ -871,7 +872,7 @@ internal fun SweptLyricLine(
             modifier.lyricParticles(layout, translationProgress, glowRoom), maxLines, overflow,
             glowAlpha, glowRadius, glowRoom, feather, rise, color, WORD_RISE, WIPE_FEATHER,
             horizontalEdge = { measured, chars, row -> horizontalAt(measured, chars, row, line.sweepSpans) },
-            onTextLayout = { layout = it })
+            onTextLayout = { layout = it }, alignRight = alignsRight(line.text, alignEnd, laneLocked))
         return
     }
 
@@ -3142,12 +3143,14 @@ internal fun rememberLyricsTranslation(
     val showingTranslation = lyricsDisplayMode == LyricsDisplayMode.Translated
     val showingRomanization = lyricsDisplayMode == LyricsDisplayMode.Romanized
     val displayedLyrics = when (lyricsDisplayMode) {
-        LyricsDisplayMode.Translated -> (translationState as? LyricsTranslationUiState.Ready)?.lines ?: lyrics.orEmpty()
+        LyricsDisplayMode.Translated -> (translationState as? LyricsTranslationUiState.Ready)?.lines
+            ?: (translationState as? LyricsTranslationUiState.RateLimited)?.lines ?: lyrics.orEmpty()
         LyricsDisplayMode.Romanized -> (romanizationState as? LyricsTranslationUiState.Ready)?.lines ?: lyrics.orEmpty()
         LyricsDisplayMode.Original -> lyrics.orEmpty()
     }
     val lyricsSubLines = when (lyricsDisplayMode) {
         LyricsDisplayMode.Translated -> (translationState as? LyricsTranslationUiState.Ready)?.lines
+            ?: (translationState as? LyricsTranslationUiState.RateLimited)?.lines
         LyricsDisplayMode.Romanized -> (romanizationState as? LyricsTranslationUiState.Ready)?.lines
         LyricsDisplayMode.Original -> null
     }
@@ -3172,6 +3175,10 @@ internal fun rememberLyricsTranslation(
             stringResource(Res.string.lyrics_already_in_language, translationLanguageName)
         showingRomanization && romanizationState is LyricsTranslationUiState.SameLanguage ->
             stringResource(Res.string.lyrics_already_romanized)
+        showingTranslation && translationState is LyricsTranslationUiState.RateLimited ->
+            stringResource(Res.string.lyrics_translation_rate_limited)
+        showingRomanization && romanizationState is LyricsTranslationUiState.RateLimited ->
+            stringResource(Res.string.lyrics_translation_rate_limited)
         showingTranslation && translationState is LyricsTranslationUiState.Unavailable ->
             stringResource(Res.string.lyrics_translation_unavailable)
         showingRomanization && romanizationState is LyricsTranslationUiState.Unavailable ->

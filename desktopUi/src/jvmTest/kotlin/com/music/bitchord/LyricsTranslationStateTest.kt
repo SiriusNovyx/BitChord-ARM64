@@ -14,6 +14,35 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class LyricsTranslationStateTest {
+    @Test(timeout = 15_000) fun rejectionStaysRateLimitedWithoutRecompositionRetriesAndUserCanRetry() = runBlocking {
+        harness {
+            val mode = mutableStateOf(LyricsDisplayMode.Translated)
+            val extra = mutableIntStateOf(0)
+            var requests = 0
+            var observed: LyricsTranslationState? = null
+            composition.setContent {
+                extra.intValue
+                val state = rememberLyricsTranslationState("rate-limited", listOf(LyricLine(0, "original")), "th", mode.value,
+                    translate = { _, lines, target ->
+                        assertEquals("th", target)
+                        if (++requests == 1) LyricsTranslationResult.RateLimited(30_000, lines.map { it.copy(text = "บางส่วน") })
+                        else LyricsTranslationResult.Translated(lines.map { it.copy(text = "ครบแล้ว") })
+                    }, romanize = { _, _, _ -> LyricsRomanizationResult.Unavailable })
+                SideEffect { observed = state }
+            }
+            settle()
+            val limited = observed!!.translation as LyricsTranslationUiState.RateLimited
+            assertEquals(30_000L, limited.retryAfterMillis)
+            assertEquals("บางส่วน", limited.lines!!.single().text)
+            repeat(5) { extra.intValue++; settle() }
+            assertEquals(1, requests)
+            mode.value = LyricsDisplayMode.Original; settle()
+            mode.value = LyricsDisplayMode.Translated; settle()
+            assertEquals("ครบแล้ว", (observed!!.translation as LyricsTranslationUiState.Ready).lines.single().text)
+            assertEquals(2, requests)
+        }
+    }
+
     private class Harness(val frames: BroadcastFrameClock, val composition: Composition) {
         suspend fun settle() {
             repeat(20) {

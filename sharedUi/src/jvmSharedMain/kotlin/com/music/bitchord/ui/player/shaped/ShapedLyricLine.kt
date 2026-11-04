@@ -11,6 +11,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.drawWithContent
@@ -205,6 +206,7 @@ internal fun ShapedLyricLine(
     wipeFeather: Dp,
     horizontalEdge: (TextLayoutResult, Float, Int) -> Float,
     onTextLayout: (TextLayoutResult) -> Unit,
+    alignRight: Boolean,
 ) {
     val measurer = rememberTextMeasurer(cacheSize = 0)
     val runs = remember(line, measurer) { LyricInkRuns(measurer, line) }
@@ -287,7 +289,7 @@ internal fun ShapedLyricLine(
         if (!lifted && !line.isGrowing(now)) runs.settled()
     }
 
-    Box(modifier) {
+    Box(modifier, contentAlignment = if (alignRight) AbsoluteAlignment.TopRight else AbsoluteAlignment.TopLeft) {
         if (glowAlpha > .01f) Text(line.text, style = style, color = Color.Transparent,
             maxLines = maxLines, overflow = overflow,
             modifier = Modifier.graphicsLayer { alpha = glowAlpha }

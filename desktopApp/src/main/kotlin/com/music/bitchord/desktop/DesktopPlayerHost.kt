@@ -149,6 +149,7 @@ internal object DesktopPlayerHost : PlayerHost {
         when (val result = LyricsTranslation.translate(trackId, lines, targetLanguageTag)) {
             is LyricsTranslation.Result.Translated -> LyricsTranslationResult.Translated(result.lines)
             is LyricsTranslation.Result.SameLanguage -> LyricsTranslationResult.SameLanguage(result.language)
+            is LyricsTranslation.Result.RateLimited -> LyricsTranslationResult.RateLimited(result.retryAfterMillis, result.lines)
             LyricsTranslation.Result.Unavailable -> LyricsTranslationResult.Unavailable
         }
 
@@ -160,6 +161,7 @@ internal object DesktopPlayerHost : PlayerHost {
         when (val result = LyricsTranslation.romanize(trackId, lines, targetLanguageTag)) {
             is LyricsTranslation.RomanizationResult.Romanized -> LyricsRomanizationResult.Romanized(result.lines)
             LyricsTranslation.RomanizationResult.AlreadyRomanized -> LyricsRomanizationResult.AlreadyRomanized
+            is LyricsTranslation.RomanizationResult.RateLimited -> LyricsRomanizationResult.RateLimited(result.retryAfterMillis)
             LyricsTranslation.RomanizationResult.Unavailable -> LyricsRomanizationResult.Unavailable
         }
 

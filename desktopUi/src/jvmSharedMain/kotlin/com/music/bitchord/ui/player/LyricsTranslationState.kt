@@ -2,6 +2,7 @@ package com.music.bitchord.ui.player
 
 import androidx.compose.runtime.*
 import com.music.bitchord.data.lyrics.LyricLine
+import com.music.bitchord.data.DebugLog
 import com.music.bitchord.data.settings.LyricsDisplayMode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
@@ -43,12 +44,14 @@ internal fun rememberLyricsTranslationState(
             return@LaunchedEffect
         }
         if (state is LyricsTranslationUiState.SameLanguage ||
-            state is LyricsTranslationUiState.Unavailable && !changedMode) return@LaunchedEffect
+            (state is LyricsTranslationUiState.Unavailable || state is LyricsTranslationUiState.RateLimited) && !changedMode) return@LaunchedEffect
         val owner = Any()
         requestOwners[mode] = owner
         fun update(value: LyricsTranslationUiState) {
             if (requestOwners[mode] !== owner) return
             if (mode == LyricsDisplayMode.Translated) translation = value else romanization = value
+            val target = targetLanguage.takeIf { it.matches(Regex("[a-zA-Z]{2,3}([-_][a-zA-Z0-9]{2,8})*")) } ?: "invalid"
+            DebugLog.d("LyricsTranslationUi", "id=${trackId.hashCode().toUInt().toString(16)} target=$target mode=$mode state=${value.javaClass.simpleName}")
         }
         update(LyricsTranslationUiState.Loading)
         try {
@@ -56,12 +59,14 @@ internal fun rememberLyricsTranslationState(
                 when (val answer = translate(trackId, lines, targetLanguage)) {
                     is LyricsTranslationResult.Translated -> LyricsTranslationUiState.Ready(answer.lines)
                     is LyricsTranslationResult.SameLanguage -> LyricsTranslationUiState.SameLanguage
+                    is LyricsTranslationResult.RateLimited -> LyricsTranslationUiState.RateLimited(answer.retryAfterMillis, answer.lines)
                     LyricsTranslationResult.Unavailable -> LyricsTranslationUiState.Unavailable
                 }
             } else {
                 when (val answer = romanize(trackId, lines, targetLanguage)) {
                     is LyricsRomanizationResult.Romanized -> LyricsTranslationUiState.Ready(answer.lines)
                     LyricsRomanizationResult.AlreadyRomanized -> LyricsTranslationUiState.SameLanguage
+                    is LyricsRomanizationResult.RateLimited -> LyricsTranslationUiState.RateLimited(answer.retryAfterMillis)
                     LyricsRomanizationResult.Unavailable -> LyricsTranslationUiState.Unavailable
                 }
             }
