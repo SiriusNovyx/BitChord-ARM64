@@ -28,6 +28,7 @@ class DesktopLoopMixEngineTest {
         val written = AtomicLong()
         val heard = AtomicLong()
         val budget = AtomicLong(256)
+        val pauses = AtomicLong()
         override fun isUsingSelection(id: String) = isOpen
         override fun open(requested: DesktopPcmFormat) = Result.success(format).also { isOpen = true }
         override fun write(samples: FloatArray, count: Int): Int {
@@ -37,7 +38,7 @@ class DesktopLoopMixEngineTest {
             return frames * format.frameBytes
         }
         override fun framesPlayed() = heard.get()
-        override fun pause() = Unit
+        override fun pause() { pauses.incrementAndGet() }
         override fun resume() = Unit
         override fun flush() { heard.set(written.get()) }
         override fun close() { isOpen = false }
@@ -55,6 +56,7 @@ class DesktopLoopMixEngineTest {
     @Test fun measuredLoopViewUsesTheAudibleClockAndClearsWhenObsolete() = exercise("view")
     @Test fun ordinaryMixViewWaitsForHeardAudioAndClearsOnSeek() = exercise("ordinary-view")
     @Test fun ordinaryMixViewSurvivesRenderedHandoverUntilQueuedAudioIsHeard() = exercise("ordinary-drain")
+    @Test fun rearmedSameTrackIdsRejectALateWaveformDelivery() = exercise("ordinary-stale")
 
     private fun exercise(mode: String = "clock") {
         val path = Files.createTempFile("bitchord-loop-engine-", ".wav")
@@ -132,12 +134,12 @@ class DesktopLoopMixEngineTest {
                 assertNull(field(engine, "activeLoop"))
                 return
             }
-            if (mode == "skip" || mode == "ordinary-view" || mode == "ordinary-drain") {
+            if (mode in listOf("skip", "ordinary-view", "ordinary-drain", "ordinary-stale")) {
                 assertTrue(engine.beginSkipMix(b.videoId, 4))
                 await("manual simple fade") { field(engine, "activePlan") != null }
                 assertNull(field(engine, "preparedLoop"))
                 assertNull(field(engine, "activeLoop"))
-                if (mode == "ordinary-view" || mode == "ordinary-drain") {
+                if (mode in listOf("ordinary-view", "ordinary-drain", "ordinary-stale")) {
                     await("ordinary view publication") { DesktopPlayerSettings.smartMixView.value != null }
                     val view = assertNotNull(DesktopPlayerSettings.smartMixView.value,
                         "An ordinary fade must publish the real planned deck view")
@@ -148,6 +150,10 @@ class DesktopLoopMixEngineTest {
                     assertTrue((view.fadeOut + view.fadeIn).all { it.isFinite() })
                     assertEquals(0f, DesktopPlayerSettings.smartMixProgress.value,
                         "Rendered lead must not advance the heard mix view")
+                    if (mode == "ordinary-stale") {
+                        exerciseLateWaveform(engine, output, a, b)
+                        return
+                    }
                     output.budget.set(rate * 2L)
                     await("ordinary fade renders ahead") { output.written.get() == rate * 2L }
                     assertEquals(0f, DesktopPlayerSettings.smartMixProgress.value)
@@ -245,6 +251,68 @@ class DesktopLoopMixEngineTest {
             assertEquals(position, engine.state.value.positionMs)
         } finally { engine.shutdown(); Files.deleteIfExists(path) }
     }
+
+    private fun exerciseLateWaveform(engine: DesktopPlaybackEngine, output: Output, a: Song, b: Song) {
+        await("first transition measured waveforms") {
+            DesktopPlayerSettings.smartMixView.value?.let {
+                it.outgoing.low.isNotEmpty() && it.incoming.low.isNotEmpty()
+            } == true
+        }
+        val oldOwner = field(engine, "ordinaryMixView")!!
+        val oldView = DesktopPlayerSettings.smartMixView.value!!
+        val delayed = waveformCommand(oldOwner, oldView.withDecks(
+            titled(oldView.outgoing, "Obsolete measured waveform"), oldView.incoming))
+
+        engine.load(a, false)
+        await("same outgoing ID reopened") {
+            !engine.state.value.isLoading && engine.state.value.song?.videoId == a.videoId &&
+                field(engine, "current") !== field(oldOwner, "outgoing")
+        }
+        engine.prepareNext(b)
+        await("same incoming ID reopened") { field(engine, "nextDeckOpenId") == b.videoId }
+        engine.play()
+        assertTrue(engine.beginSkipMix(b.videoId, 4))
+        await("same-ID transition rearmed") {
+            field(engine, "ordinaryMixView")?.let { it !== oldOwner } == true &&
+                DesktopPlayerSettings.smartMixView.value != null
+        }
+        await("replacement waveforms measured") {
+            DesktopPlayerSettings.smartMixView.value?.let {
+                it.outgoing.low.isNotEmpty() && it.incoming.low.isNotEmpty()
+            } == true
+        }
+        val owner = field(engine, "ordinaryMixView")!!
+        assertNotEquals(field(oldOwner, "epoch"), field(owner, "epoch"))
+        engine.pause()
+        await("replacement transition paused") { !engine.state.value.isPlaying }
+        val current = DesktopPlayerSettings.smartMixView.value!!
+        val progress = DesktopPlayerSettings.smartMixProgress.value
+        @Suppress("UNCHECKED_CAST")
+        val commands = field(engine, "commands") as java.util.concurrent.ConcurrentLinkedQueue<Any>
+        commands.add(delayed)
+        val pauseBarrier = output.pauses.get()
+        await("late delivery consumed by actual paused audio pump") {
+            commands.isEmpty() && output.pauses.get() >= pauseBarrier + 2
+        }
+        assertSame(current, DesktopPlayerSettings.smartMixView.value,
+            "Same catalogue IDs must not let a previous transition replace the current waveform")
+        assertEquals(progress, DesktopPlayerSettings.smartMixProgress.value)
+
+        val accepted = current.withDecks(titled(current.outgoing, "Current measured waveform"), current.incoming)
+        commands.add(waveformCommand(owner, accepted))
+        await("current-owner delivery is still accepted") { DesktopPlayerSettings.smartMixView.value === accepted }
+        assertEquals(progress, DesktopPlayerSettings.smartMixProgress.value)
+    }
+
+    private fun waveformCommand(owner: Any, view: com.music.bitchord.data.settings.MixTransitionView): Any {
+        val type = Class.forName(DesktopPlaybackEngine::class.java.name + "$" + "Command" + "$" + "MixWaves")
+        return type.declaredConstructors.single().apply { isAccessible = true }.newInstance(
+            field(owner, "epoch"), field(owner, "outgoing"), field(owner, "incoming"), view)
+    }
+
+    private fun titled(deck: com.music.bitchord.data.settings.MixDeck, title: String) =
+        com.music.bitchord.data.settings.MixDeck(title, deck.artist, deck.artworkUrl, deck.bpm,
+            deck.key, deck.durationMs, deck.waveStart, deck.waveEnd, deck.low, deck.mid, deck.high)
 
     private fun field(owner: Any, name: String): Any? = owner.javaClass.declaredFields
         .find { it.name == name }?.apply { isAccessible = true }?.get(owner)
