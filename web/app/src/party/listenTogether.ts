@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { config } from '@/config';
 import { ytAuthSnapshot } from '@/extension/useYtAuth';
 import { ServerClock } from './clock';
 import { cleanCode, CODE_LENGTH, sanitizeServerUrl } from './invite';
@@ -35,7 +36,8 @@ import {
  * the server's 45 s grace, so a refresh is invisible to everyone else.
  */
 
-export const DEFAULT_SERVER = 'https://api.bitchord.kushagrasingh.in';
+/** Empty only in a dev build run without VITE_PARTY_SERVER_URL; parties then need a custom server. */
+export const DEFAULT_SERVER = sanitizeServerUrl(config.partyServerUrl) ?? '';
 export const MAX_UPCOMING = 25;
 const PING_INTERVAL_MS = 15_000;
 const REPORT_INTERVAL_MS = 10_000;
@@ -131,6 +133,7 @@ export function idleServer(): string {
 
 let token: string | null = null;
 let server: string | null = null;
+let membershipId = 0;
 export const clock = new ServerClock();
 
 function deviceId(): string {
@@ -186,6 +189,7 @@ async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
 }
 
 function adoptMembership(base: string, membership: PartyMembership): string {
+  membershipId++;
   token = membership.token;
   server = base;
   sessionStorage.setItem(SESSION_KEY, JSON.stringify({ code: membership.code, token, server }));
@@ -275,6 +279,7 @@ export async function leaveParty(): Promise<void> {
   const { code } = useParty.getState();
   const held = token;
   const base = server;
+  membershipId++;
   disconnect();
   token = null;
   server = null;
@@ -290,6 +295,7 @@ export function resumeSession(): void {
   try {
     const saved = JSON.parse(sessionStorage.getItem(SESSION_KEY) ?? 'null') as { code: string; token: string; server: string } | null;
     if (!saved?.code || !saved.token || !saved.server) return;
+    membershipId++;
     token = saved.token;
     server = saved.server;
     useParty.setState({ ...IDLE, code: saved.code, connection: 'connecting' });
@@ -454,11 +460,18 @@ function connect(): void {
 async function checkMembership(): Promise<void> {
   const { code } = useParty.getState();
   if (!code || !token || !server) return;
+  const id = membershipId;
+  const held = token;
+  const base = server;
+  const owns = () => id === membershipId && code === useParty.getState().code && held === token && base === server;
   try {
-    const response = await fetch(`${server}/api/parties/${code}`, { headers: { Authorization: `Bearer ${token}` } });
+    const response = await fetch(`${base}/api/parties/${code}`, { headers: { Authorization: `Bearer ${held}` } });
+    if (!owns()) return;
     if (response.status === 401 || response.status === 404) {
       const why = await errorOf(response);
-      await leaveParty();
+      if (!owns()) return;
+      // Local retirement is synchronous; a slow slot release must not later change a new party.
+      void leaveParty();
       useParty.setState({ error: why.status === 404 ? 'That party has ended.' : why.message });
     }
   } catch {
@@ -557,7 +570,8 @@ function onFrame(text: string): void {
     case 'bye': {
       if (frame.reason === 'kicked' && state.code) recordKick(state.code);
       const kicked = frame.reason === 'kicked';
-      void leaveParty().then(() => kicked && useParty.setState({ error: 'The host removed you from the party.' }));
+      void leaveParty();
+      if (kicked) useParty.setState({ error: 'The host removed you from the party.' });
       break;
     }
   }

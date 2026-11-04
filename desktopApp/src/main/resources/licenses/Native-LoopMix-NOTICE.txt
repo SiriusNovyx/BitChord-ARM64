@@ -1,0 +1,21 @@
+Native LoopMix components
+
+The native renderer and JNI bridge are Copyright (C) 2026 Kushagra Singh,
+licensed GPL-3.0-or-later. Desktop deck setup adapts the Android LoopMixSession
+to one native output clock. Source: native/loopmix, app/src/main/cpp/jni/loopmix_jni.cpp,
+desktopApp/src/main/kotlin/com/music/bitchord/playback/loopmix, and DesktopLoopMixGraph.kt.
+
+The shared LoopMix planner is Copyright (C) 2026 Kushagra Singh, ported from the
+Web AutoMix engine based on AutoMix by David Finnegan. It remains AGPL-3.0-or-later.
+Other shared analysis/policy files retain their Orchard and BitChord headers.
+The Web AutoMix attribution and AGPL text are included under licenses/automix.
+That attribution describes upstream Web behavior; it does not establish that an
+unpublished native integration's corresponding source has been made available.
+
+Signalsmith Stretch: Copyright (c) 2022 Geraint Luff / Signalsmith Audio Ltd., MIT.
+Signalsmith Linear: Copyright (c) 2025 Signalsmith Audio, MIT.
+Their full license texts are included in separate licenses/signalsmith directories.
+
+Distribution must retain the applicable licenses, attribution, and corresponding
+source for the exact distributed build, including its native components. The
+presence of these notices alone is not a completed distribution review.

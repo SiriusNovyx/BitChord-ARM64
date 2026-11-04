@@ -9,7 +9,7 @@ import com.music.bitchord.build.WindowsBinary
 val appVersion: String = providers.gradleProperty("bitchord.version").orNull
     ?.removePrefix("v")
     ?.takeIf { it.isNotBlank() }
-    ?: "1.8-beta1"
+    ?: (rootProject.extra["bitchordVersionName"] as String)
 
 /** Which platform this build is *for*, which is the host unless told otherwise. */
 val hostIsWindows = System.getProperty("os.name").contains("Windows", ignoreCase = true)
@@ -43,7 +43,7 @@ val arm64QuickJsJar = File(arm64Natives, "quickjs-kt-jvm-1.0.14-windows-arm64-bi
 // Windows installer metadata requires MAJOR.MINOR.BUILD even though the app's public version is
 // intentionally displayed without a patch number (1.7 rather than 1.7.0).
 // The build number is the desktop version code; it also keeps "-beta1" out of the numeric installer version.
-val desktopVersionCode = 29
+val desktopVersionCode = rootProject.extra["bitchordVersionCode"] as Int
 val nativePackageVersion = appVersion.substringBefore('-').split('.').take(2).joinToString(".") + ".$desktopVersionCode"
 
 // FFmpeg decodes audio; see DesktopAudioDecoder.
@@ -85,7 +85,8 @@ dependencies {
     implementation("com.google.zxing:core:3.5.3")
 
     implementation(project(":shared"))
-    implementation(project(":sharedUi"))
+    // Its own copy of the player and pages; the phone and TV keep :sharedUi.
+    implementation(project(":desktopUi"))
     if (windowsArm64) implementation(files(arm64QuickJsJar))
     // BotGuard, for the PoTokens YouTube's web clients need: the phone runs it in an Android
     // WebView, the desktop in JavaFX's (WebKit). Per-platform jars carry the natives.
@@ -342,6 +343,8 @@ val buildAnalysisNative by tasks.registering {
     val crossing = crossBuildingForWindows
     val toolchain = project.file("native/mingw-w64.cmake")
     inputs.dir(rootProject.file("native/analyzer"))
+    inputs.dir(rootProject.file("native/loopmix"))
+    inputs.dir(rootProject.file("native/third_party"))
     inputs.dir(rootProject.file("app/src/main/cpp/jni"))
     inputs.dir(project.file("native"))
     inputs.property("target", targetOs)
@@ -518,10 +521,14 @@ tasks.named<ProcessResources>("processResources") {
         include("*.dll")
         into("native")
     }
-    // The Automix models, taken from the Android module rather than copied into this one.
+    // Current shared models come from Android; the measured native beat model is a Desktop resource.
     from(rootProject.file("app/src/main/assets")) {
         include("*.onnx")
+        exclude("beat_this_int8.onnx")
         into("models")
+    }
+    from(rootProject.file("app/src/main/assets/licenses/models")) {
+        into("licenses/models")
     }
 }
 
@@ -632,6 +639,7 @@ val windowsPortableAssemble by tasks.registering {
     // Declared, not implied.
     inputs.file(appJar)
     inputs.files(runtime)
+    inputs.dir(rootProject.file("app/src/main/assets/licenses/models"))
     inputs.property("version", version)
     inputs.property("moduleIndex", moduleIndex)
     inputs.property("lastfm", lastfmKey.isNotBlank())
@@ -689,7 +697,26 @@ val windowsPortableAssemble by tasks.registering {
             from(rootProject.file("LICENSE"))
             from(rootProject.file("docs/windows-arm64-third-party.md"))
             from(project.file("src/main/resources/licenses/WDB-Bangna-NOTICE.txt"))
+            from(project.file("src/main/resources/licenses/Native-LoopMix-NOTICE.txt"))
+            from(rootProject.file("desktopUi/src/commonMain/composeResources/files/OFL-Vazirmatn.txt"))
             into(File(target, "licenses"))
+        }
+        project.copy {
+            from(rootProject.file("native/third_party/signalsmith-stretch/LICENSE.txt"))
+            into(File(target, "licenses/signalsmith/stretch"))
+        }
+        project.copy {
+            from(rootProject.file("native/third_party/signalsmith-linear/LICENSE.txt"))
+            into(File(target, "licenses/signalsmith/linear"))
+        }
+        project.copy {
+            from(rootProject.file("web/app/src/playback/automix/LICENSE"))
+            from(rootProject.file("web/app/src/playback/automix/NOTICE.md"))
+            into(File(target, "licenses/automix"))
+        }
+        project.copy {
+            from(rootProject.file("app/src/main/assets/licenses/models"))
+            into(File(target, "licenses/models"))
         }
         if (windowsArm64) {
             project.copy { from(File(arm64Natives, "licenses")); into(File(target, "licenses")) }
@@ -803,7 +830,7 @@ val windowsPortableAssemble by tasks.registering {
                 add("the Spotify helper dependency notices are missing")
             }
             if (windowsArm64) {
-                listOf("bitchord_analysis.dll", "bitchord_smtc.dll", "bitchord_window.dll", "bitchord_webview.dll").forEach {
+                listOf("bitchord_analysis.dll", "bitchord_loopmix.dll", "bitchord_smtc.dll", "bitchord_window.dll", "bitchord_webview.dll").forEach {
                     if (!holds("native/$it")) add("$it is missing; ARM64 must retain Automix and Windows integration")
                 }
                 if (!holds("ai/onnxruntime/native/win-aarch64/onnxruntime4j_jni.dll")) add("ARM64 ONNX Runtime Java natives are missing")

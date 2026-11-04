@@ -99,7 +99,10 @@ class DesktopAddonTest {
     fun immersiveMixesAreRecognisedWhereverTheAddonSaysSo() {
         assertTrue(DesktopAddonStream(quality = "Dolby Atmos").isDolbyAtmos)
         assertTrue(DesktopAddonStream(audioModes = listOf("DOLBY_ATMOS")).isDolbyAtmos)
-        assertTrue(DesktopAddonStream(codec = "eac3").isDolbyAtmos)
+        assertFalse(DesktopAddonStream(codec = "eac3").isDolbyAtmos)
+        assertFalse(DesktopAddonStream(codec = "ec-3").isDolbyAtmos)
+        assertFalse(DesktopAddonStream(quality = "Dolby Digital Plus").isDolbyAtmos)
+        assertTrue(DesktopAddonStream(codec = "eac3-joc").isDolbyAtmos)
         assertFalse(DesktopAddonStream(quality = "FLAC 24-bit").isDolbyAtmos)
 
         assertTrue(DesktopAddonTrack(audioModes = listOf("DOLBY_ATMOS")).isDolbyAtmos)
@@ -177,7 +180,7 @@ class DesktopAddonTest {
     // ── Source order ─────────────────────────────────────────────────────
 
     @Test
-    fun sourcesAreWalkedByRankAndThenByTheOrderTheyAreStoredIn() {
+    fun sourcesPreserveStoredOrderWithinCustomAndBuiltInGroups() {
         val configs = listOf(
             DesktopSourceConfig("youtube", DesktopSourceKind.YOUTUBE),
             DesktopSourceConfig("jio", DesktopSourceKind.JIOSAAVN),
@@ -187,7 +190,7 @@ class DesktopAddonTest {
         )
 
         assertEquals(
-            listOf("addon-2", "addon-1", "legacy", "jio", "youtube"),
+            listOf("addon-2", "legacy", "addon-1", "youtube", "jio"),
             configs.inSourceOrder().map { it.id },
         )
     }
@@ -220,7 +223,7 @@ class DesktopAddonTest {
         )
 
         assertEquals(
-            listOf("b", "a", "jio", "youtube"),
+            listOf("b", "a", "youtube", "jio"),
             moveUserSource(sources, "b", -1).map { it.id },
         )
     }

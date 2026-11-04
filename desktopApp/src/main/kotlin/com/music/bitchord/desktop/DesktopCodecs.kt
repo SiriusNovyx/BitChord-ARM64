@@ -12,8 +12,11 @@ internal object DesktopCodecs {
     fun canDecode(name: String): Boolean =
         known.getOrPut(name) { avcodec_find_decoder_by_name(name) != null }
 
-    /** Whether a Dolby Atmos rendition can be played. */
-    val supportsDolbyAtmos: Boolean get() = canDecode("eac3")
+    /** A JOC rendition can be selected for core decoding; this does not prove object output. */
+    val canDecodeEac3Core: Boolean get() = canDecode("eac3")
+
+    /** Compatibility name used by stream-selection policy only. */
+    val supportsDolbyAtmos: Boolean get() = canDecodeEac3Core
 
     /** Every codec the Android build can play, by FFmpeg's name for it. */
     val EXPECTED = listOf(

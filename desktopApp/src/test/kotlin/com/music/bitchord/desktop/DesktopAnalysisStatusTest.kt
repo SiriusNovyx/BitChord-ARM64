@@ -58,7 +58,7 @@ class DesktopAnalysisStatusTest {
         val worker = ManualWorker()
         val analyzer = DesktopTrackAnalyzer(worker = worker)
         val id = DesktopAddonSource.trackKey("status-test", UUID.randomUUID().toString())
-        val home = DesktopAnalysisRuntime.analysisHome()
+        val home = DesktopTrackAnalyzer.analysisCacheHome()
         val file = File(File(home, "smart_analysis"), "${id.hashCode().toUInt()}_${id.length}.json")
         assertFalse(file.exists())
         try {

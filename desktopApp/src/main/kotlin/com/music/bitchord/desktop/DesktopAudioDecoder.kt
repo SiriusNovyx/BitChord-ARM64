@@ -18,6 +18,7 @@ import org.bytedeco.ffmpeg.global.avcodec.avcodec_alloc_context3
 import org.bytedeco.ffmpeg.global.avcodec.AVDISCARD_ALL
 import org.bytedeco.ffmpeg.global.avcodec.avcodec_find_decoder
 import org.bytedeco.ffmpeg.global.avcodec.avcodec_get_name
+import org.bytedeco.ffmpeg.global.avcodec.avcodec_profile_name
 import org.bytedeco.ffmpeg.global.avcodec.avcodec_flush_buffers
 import org.bytedeco.ffmpeg.global.avcodec.avcodec_free_context
 import org.bytedeco.ffmpeg.global.avcodec.avcodec_open2
@@ -61,9 +62,12 @@ import org.bytedeco.ffmpeg.global.avutil.av_frame_free
 import org.bytedeco.ffmpeg.global.avutil.av_log_set_level
 import org.bytedeco.ffmpeg.global.swresample.swr_alloc_set_opts2
 import org.bytedeco.ffmpeg.global.swresample.swr_convert
+import org.bytedeco.ffmpeg.global.swresample.swr_close
 import org.bytedeco.ffmpeg.global.swresample.swr_free
 import org.bytedeco.ffmpeg.global.swresample.swr_get_out_samples
+import org.bytedeco.ffmpeg.global.swresample.swr_get_delay
 import org.bytedeco.ffmpeg.global.swresample.swr_init
+import org.bytedeco.ffmpeg.global.swresample.swr_inject_silence
 import org.bytedeco.ffmpeg.swresample.SwrContext
 import org.bytedeco.javacpp.BytePointer
 import org.bytedeco.javacpp.PointerPointer
@@ -103,6 +107,11 @@ internal class DesktopAudioDecoder : DesktopSampleSource {
 
     /** Set once the container is exhausted, so the drain runs exactly once. */
     private var drained = false
+    private var resamplerDrained = false
+    private var nextOutputUs: Double? = null
+    private var resamplerInputFrames = 0L
+    private var resamplerOutputFrames = 0L
+    private var resamplerExtended = false
 
     /** Live only while this decoder reads through windowed HTTP; see [open]. */
     @Volatile private var rangeSource: DesktopRangeStream? = null
@@ -132,9 +141,15 @@ internal class DesktopAudioDecoder : DesktopSampleSource {
     var durationUs: Long? = null
         private set
 
-    /** Where the last decoded frame sat, for position reporting after a seek. */
+    /** Song position of the first returned PCM sample, after any seek trimming. */
     var positionUs: Long = 0L
         private set
+
+    /** Null when the returned samples have no observed timestamp; a seek request is not evidence. */
+    var samplePositionUs: Double? = null
+        private set
+
+    val timestampPrecisionUs: Double get() = (streamTimeBase * 1_000_000.0).coerceAtLeast(1.0)
 
     /** The stream's first timestamp: song position 0, which an HLS or MPEG-TS stream puts well past 0. */
     private var streamStartUs = 0L
@@ -158,6 +173,8 @@ internal class DesktopAudioDecoder : DesktopSampleSource {
         windowed: Boolean = false,
         /** Explicit demuxer for an extensionless add-on manifest. */
         transport: String? = null,
+        /** Playback retains source precision; analysis needs the model's exact sample clock. */
+        preserveSourceSampleRate: Boolean = true,
     ): Result<Unit> = runCatching {
         av_log_set_level(AV_LOG_ERROR)
         ensureNetwork()
@@ -235,12 +252,17 @@ internal class DesktopAudioDecoder : DesktopSampleSource {
             else -> null
         }
 
-        outputFormat = requested.copy(sampleRate = context.sample_rate())
+        outputFormat = if (preserveSourceSampleRate) requested.copy(sampleRate = context.sample_rate()) else requested
         measuredFormat = measure(decoder.name()?.string, context, opened)
         resampler = buildResampler(context, outputFormat)
         packet = av_packet_alloc()
         frame = av_frame_alloc()
         drained = false
+        resamplerDrained = false
+        nextOutputUs = null
+        resamplerInputFrames = 0L
+        resamplerOutputFrames = 0L
+        resamplerExtended = false
     }.onFailure { close() }
 
     /**
@@ -292,6 +314,8 @@ internal class DesktopAudioDecoder : DesktopSampleSource {
             sampleRateHz = context.sample_rate().takeIf { it > 0 },
             bitDepth = depth?.takeIf { lossless },
             channels = channels,
+            observedProfile = avcodec_profile_name(context.codec_id(), context.profile())?.string,
+            decoderName = codecName,
         )
     }
 
@@ -373,6 +397,7 @@ internal class DesktopAudioDecoder : DesktopSampleSource {
 
     /** The next block of PCM, or null at the end of the stream. */
     fun read(): ByteArray? {
+        samplePositionUs = null
         val context = codec ?: return null
         val container = format ?: return null
         val pkt = packet ?: return null
@@ -387,15 +412,15 @@ internal class DesktopAudioDecoder : DesktopSampleSource {
                 if (block.isNotEmpty()) return block
                 continue
             }
-            if (received == AVERROR_EOF) return null
+            if (received == AVERROR_EOF) return drainResampler()
             // Every other negative means "not enough input yet".
-            if (!pump(container, pkt, context)) return null
+            if (!pump(container, pkt, context)) return drainResampler()
         }
     }
 
     /** The next block as interleaved floats, or null at the end of the stream. */
     override fun readSamples(): FloatArray? {
-        val block = read() ?: return null
+        val block = read() ?: run { sampleCount = 0; return null }
         val count = block.size / 4
         if (samples.size < count) samples = FloatArray(count)
         for (index in 0 until count) {
@@ -439,16 +464,57 @@ internal class DesktopAudioDecoder : DesktopSampleSource {
         ensureOutputCapacity(capacity, target)
         val planes = outputPlanes ?: return null
 
-        val produced = swr_convert(swr, planes, capacity, decoded.data(), decoded.nb_samples())
-        if (produced <= 0) return ByteArray(0)
-
         val stamp = decoded.best_effort_timestamp().takeIf { it != AV_NOPTS_VALUE } ?: decoded.pts()
         val frameUs = if (stamp != AV_NOPTS_VALUE) {
-            (stamp * streamTimeBase * 1_000_000L).toLong() - streamStartUs
+            stamp * streamTimeBase * 1_000_000.0 - streamStartUs - swr_get_delay(swr, 1_000_000)
         } else {
-            null
+            nextOutputUs
         }
-        if (frameUs != null) positionUs = frameUs
+        resamplerInputFrames += decoded.nb_samples()
+        val produced = swr_convert(swr, planes, capacity, decoded.data(), decoded.nb_samples())
+        check(produced >= 0) { "Audio resampling failed (${describe(produced)})" }
+        if (produced == 0) {
+            nextOutputUs = frameUs
+            return ByteArray(0)
+        }
+        return copyOutput(produced, frameUs)
+    }
+
+    private fun drainResampler(): ByteArray? {
+        val swr = resampler ?: return null
+        if (resamplerDrained) return null
+        val fromRate = codec?.sample_rate()?.coerceAtLeast(1) ?: return null
+        val toRate = outputFormat.sampleRate
+        val totalFrames = (resamplerInputFrames * toRate + fromRate - 1) / fromRate
+        while (true) {
+            val remaining = totalFrames - resamplerOutputFrames
+            if (remaining <= 0) { resamplerDrained = true; return null }
+            val bound = swr_get_out_samples(swr, 0)
+            check(bound >= 0) { "Could not measure the audio resampler tail" }
+            val capacity = minOf(bound.coerceAtLeast(1).toLong(), remaining).toInt()
+            ensureOutputCapacity(capacity, outputFormat)
+            val produced = swr_convert(swr, outputPlanes, capacity, null as PointerPointer<*>?, 0)
+            check(produced >= 0) { "Audio resampler drain failed (${describe(produced)})" }
+            if (produced == 0) {
+                check(!resamplerExtended) { "Audio resampler did not complete its input duration" }
+                // Tiny fragments may not initialize FFmpeg's reflected filter. Supply finite
+                // zero support, capped above so none of the extension becomes extra playback.
+                val support = ((bound.coerceAtLeast(1).toLong() * 2 * fromRate + toRate - 1) / toRate)
+                    .coerceIn(1L, Int.MAX_VALUE.toLong()).toInt()
+                check(swr_inject_silence(swr, support) >= 0) { "Could not complete the audio resampler tail" }
+                resamplerExtended = true
+                continue
+            }
+            val block = copyOutput(produced, nextOutputUs)
+            if (block.isNotEmpty()) return block
+        }
+    }
+
+    private fun copyOutput(produced: Int, observedFrameUs: Double?): ByteArray {
+        val target = outputFormat
+        val frameUs = observedFrameUs?.takeIf { it.isFinite() }
+        resamplerOutputFrames += produced
+        nextOutputUs = frameUs?.plus(produced * 1_000_000.0 / target.sampleRate)
 
         // Frames before a seek target: the demuxer landed on the index point before it.
         var skip = 0
@@ -460,16 +526,19 @@ internal class DesktopAudioDecoder : DesktopSampleSource {
                 trimBeforeUs = null
             } else {
                 skip = ((trimTo - frameUs) * target.sampleRate / 1_000_000L)
-                    .coerceIn(0L, produced.toLong())
+                    .coerceIn(0.0, produced.toDouble())
                     .toInt()
                 if (skip < produced) trimBeforeUs = null
             }
         }
         if (skip >= produced) return ByteArray(0)
 
+        samplePositionUs = frameUs?.plus(skip * 1_000_000.0 / target.sampleRate)
+        samplePositionUs?.let { positionUs = it.toLong() }
+
         val bytes = (produced - skip) * target.frameBytes
         if (scratch.size < bytes) scratch = ByteArray(bytes)
-        val buffer = outputBuffer ?: return null
+        val buffer = checkNotNull(outputBuffer)
         buffer.position(skip.toLong() * target.frameBytes)
         buffer.limit(produced.toLong() * target.frameBytes)
         buffer.get(scratch, 0, bytes)
@@ -502,8 +571,18 @@ internal class DesktopAudioDecoder : DesktopSampleSource {
         val target = ((micros + streamStartUs) / 1_000_000.0 / streamTimeBase).toLong()
         if (av_seek_frame(container, streamIndex, target, AVSEEK_FLAG_BACKWARD) < 0) return false
         avcodec_flush_buffers(context)
+        resampler?.let { swr ->
+            swr_close(swr)
+            if (swr_init(swr) < 0) return false
+        }
         drained = false
+        resamplerDrained = false
+        nextOutputUs = null
+        resamplerInputFrames = 0L
+        resamplerOutputFrames = 0L
+        resamplerExtended = false
         positionUs = micros
+        samplePositionUs = null
         trimBeforeUs = micros.takeIf { it > 0 }
         return true
     }

@@ -215,7 +215,7 @@ internal data class DesktopAddonStream(
 }
 
 /** Every spelling compatible addons use for Dolby Atmos in catalogue and stream metadata. */
-private val ATMOS_HINT = Regex("""atmos|dolby|eac3[_-]?joc|e-?ac-?3|ec-?3""", RegexOption.IGNORE_CASE)
+private val ATMOS_HINT = Regex("""\batmos\b|dolby[_ -]?atmos|eac3[_-]?joc|ec3[_-]?joc""", RegexOption.IGNORE_CASE)
 
 /** Process-local setting read by clients without constructing preferences for every request. */
 internal object DesktopAddonSettings {
@@ -409,7 +409,7 @@ internal class DesktopAddonClient(rawBaseUrl: String) {
                     ?: throw DesktopAddonException("Empty response")
                 code == 404 -> throw DesktopAddonNotFound()
                 code >= 500 -> throw DesktopAddonUnavailable("HTTP $code")
-                code != 429 -> throw DesktopAddonException("HTTP $code")
+                code != 429 -> throw DesktopSourceHttpException(code)
                 attempt >= MAX_RETRIES -> throw DesktopAddonUnavailable("This addon is rate limiting BitChord")
                 else -> retryAfterMs(response.headers["Retry-After"], attempt)
             }
@@ -605,7 +605,10 @@ internal object DesktopAddonSource {
         refreshPolicy(config)
         val tracks = client(config)
             .search(query, DesktopAddonClient.TIER_LOSSLESS)
-            .getOrElse { return@runCatching emptyList() }
+            .getOrElse { failure ->
+                if (failure is kotlinx.coroutines.CancellationException || failure.isProviderWideSourceFailure()) throw failure
+                return@runCatching emptyList()
+            }
         tracks.asSequence()
             .filter { it.id.isNotBlank() && it.title.isNotBlank() }
             .take(limit)
@@ -641,7 +644,7 @@ internal object DesktopAddonSource {
     suspend fun matches(config: DesktopSourceConfig, song: Song): List<Song> {
         if (song.title.isBlank() || song.isVideo) return emptyList()
         for (query in DesktopTrackMatcher.queries(song)) {
-            val candidates = search(config, query, 25).getOrDefault(emptyList())
+            val candidates = search(config, query, 25).getOrThrow()
                 .mapNotNull { (it as? SearchResult.Track)?.song }
             DesktopTrackMatcher.ranked(candidates, song).ifEmpty { null }?.let { return it }
         }
@@ -669,6 +672,11 @@ internal object DesktopAddonSource {
         if (answer == null) {
             // A 404 is the addon saying it does not hold this one, which is a miss, not a fault.
             val failure = outcome.exceptionOrNull()
+            if (failure is kotlinx.coroutines.CancellationException) throw failure
+            if (failure?.isProviderWideSourceFailure() == true) {
+                DesktopSourceRegistry.recordFailure(config, failure)
+                throw failure
+            }
             if (failure !is DesktopAddonNotFound) {
                 DesktopTrackLog.log(
                     "${config.displayName}: stream failed for ${reference.trackId} — " +
@@ -731,13 +739,11 @@ internal object DesktopAddonSource {
      * container and carries its only claim in words like `Hi-Res FLAC (DASH)`.
      */
     private fun formatOf(answer: DesktopAddonStream, url: String, tier: String): DesktopStreamFormat {
-        val codec = answer.statedCodec?.takeIf { it in AUDIO_CODECS }
+        val codec = answer.statedCodec?.replace('_', '-')?.takeIf { it in AUDIO_CODECS }
             ?: answer.statedContainer?.takeIf { it in SELF_DESCRIBING_CONTAINERS }
             ?: answer.mimeType?.substringAfterLast('/')?.substringBefore(';')?.trim()
                 ?.lowercase(Locale.ROOT)?.takeIf { it in AUDIO_CODECS }
-            ?: if (answer.isDolbyAtmos) {
-                "eac3-joc"
-            } else if (DesktopModuleSource.qualityTier(answer.qualityText) == DesktopModuleSource.LOSSLESS) {
+            ?: if (DesktopModuleSource.qualityTier(answer.qualityText) == DesktopModuleSource.LOSSLESS) {
                 "flac"
             } else {
                 url.substringBefore('?').substringAfterLast('.')
@@ -753,6 +759,7 @@ internal object DesktopAddonSource {
             },
             sampleRateHz = answer.sampleRateHz,
             bitDepth = answer.bits,
+            sourceDeclaredAtmos = answer.isDolbyAtmos,
         )
     }
 
@@ -787,7 +794,7 @@ internal object DesktopAddonSource {
     /** What may be believed as a codec, from a field or from a URL's extension. */
     private val AUDIO_CODECS = setOf(
         "flac", "alac", "wav", "aiff", "mp3", "aac", "he-aac", "m4a", "mp4",
-        "ogg", "opus", "vorbis", "webm", "eac3-joc", "ec3-joc",
+        "ogg", "opus", "vorbis", "webm", "eac3", "ec-3", "ac3", "eac3-joc", "ec3-joc",
     )
 }
 

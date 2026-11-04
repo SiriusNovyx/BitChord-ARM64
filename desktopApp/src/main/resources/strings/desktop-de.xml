@@ -89,4 +89,6 @@
     <string name="d_translation_unavailable">Übersetzung nicht verfügbar</string>
     <string name="d_what_the_translate_button_translates_into">Wonach die Übersetzen-Schaltfläche im Liedtext übersetzt</string>
     <string name="d_off">Aus</string>
+    <string name="pipeline_unknown">Unbekannt</string>
+    <string name="pipeline_no_app_resampling">Keine Abtastratenumwandlung in der App</string>
 </resources>

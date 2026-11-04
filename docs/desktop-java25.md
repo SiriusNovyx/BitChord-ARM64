@@ -1,3 +1,5 @@
+> Historical baseline: validation and measurements below predate the comprehensive v1.8.1 integration. See [the current integration record](upstream-v181-integration.md) for current source, packages and verification status. Earlier selective-import policy is superseded.
+
 # Build infrastructure modernization candidate
 
 The chosen target is Java 25 LTS with Gradle 9.5.1 and AGP 9.3 for the build infrastructure.
@@ -170,7 +172,7 @@ $jdk21 = "$PWD\.work\tools\zulu21.52.203-ca-jdk21.0.12.1-win_aarch64"
 $jdkPaths = "$jdk21,$env:JAVA_HOME"
 $sdk = "$PWD\.work\webview2-sdk\extracted"
 $cmake = 'C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe'
-rtk proxy .\gradlew-modern.bat :desktopApp:test :shared:jvmTest :sharedUi:jvmTest :desktopApp:windowsPortable '-Pbitchord.modernBuild=true' '-Pbitchord.arch=arm64' "-Porg.gradle.java.installations.paths=$jdkPaths" '-Porg.gradle.java.installations.auto-detect=false' "-Pbitchord.windowsRuntime=$jdk21" "-Pbitchord.webview2Sdk=$sdk" "-Pbitchord.cmake=$cmake"
+rtk proxy .\gradlew-modern.bat :desktopApp:test :shared:jvmTest :sharedUi:jvmTest :desktopUi:jvmTest :desktopApp:windowsPortable '-Pbitchord.modernBuild=true' '-Pbitchord.arch=arm64' "-Porg.gradle.java.installations.paths=$jdkPaths" '-Porg.gradle.java.installations.auto-detect=false' "-Pbitchord.windowsRuntime=$jdk21" "-Pbitchord.webview2Sdk=$sdk" "-Pbitchord.cmake=$cmake"
 ```
 
 For Android, keep the same build JVM and explicit Java 21 toolchain, then run:

@@ -72,10 +72,10 @@ class DesktopAudioRecoveryTest {
         override fun close() { isOpen = false; closed.countDown() }
     }
 
-    private fun engine(output: Output, sources: MutableList<Source>, ended: AtomicInteger = AtomicInteger(), crossfaded: AtomicInteger = AtomicInteger(), incomingReady: CompletableDeferred<Unit>? = null): DesktopPlaybackEngine =
+    private fun engine(output: Output, sources: MutableList<Source>, ended: AtomicInteger = AtomicInteger(), crossfaded: AtomicInteger = AtomicInteger(), incomingReady: CompletableDeferred<Unit>? = null, pendingIncomingId: String = "B"): DesktopPlaybackEngine =
         DesktopPlaybackEngine({ ended.incrementAndGet() }, { crossfaded.incrementAndGet() }, output,
             { song ->
-                val pending = if (song.videoId == "B" && incomingReady != null) {
+                val pending = if (song.videoId == pendingIncomingId && incomingReady != null) {
                     val delegate = CompletableDeferred<DesktopStream?>()
                     object : Deferred<DesktopStream?> by delegate {
                         override suspend fun await(): DesktopStream? {
@@ -95,6 +95,71 @@ class DesktopAudioRecoveryTest {
         val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3)
         while (!predicate() && System.nanoTime() < deadline) Thread.sleep(10)
         assertTrue(predicate(), message)
+    }
+
+    @Test fun `Spotify application refusal does not reopen or substitute its source`() {
+        val output = Output()
+        val resolutions = AtomicInteger()
+        val opens = AtomicInteger()
+        val ended = AtomicInteger()
+        val selected = song("spotify:track:0123456789012345678901")
+        val engine = DesktopPlaybackEngine({ ended.incrementAndGet() }, {}, output,
+            {
+                resolutions.incrementAndGet()
+                Result.success(DesktopLiveResolution(DesktopStream(selected.videoId, sourceId = "spotify-native")))
+            },
+            { _, _, _ -> opens.incrementAndGet(); throw SpotifyPcmException(313) }, false)
+        try {
+            engine.load(selected)
+            await("provider refusal reported") { engine.state.value.error != null && !engine.state.value.isLoading }
+            assertEquals(1, resolutions.get())
+            assertEquals(1, opens.get())
+            assertEquals(0, ended.get())
+            assertEquals(selected.videoId, engine.state.value.song?.videoId)
+            assertTrue(engine.state.value.error.orEmpty().contains("restricted"))
+        } finally { engine.shutdown() }
+    }
+
+    @Test fun `Spotify refusal during PCM reading retains the provider diagnostic`() {
+        val output = Output().apply { autoPlay = true }
+        val sources = CopyOnWriteArrayList<Source>()
+        val ended = AtomicInteger()
+        val engine = engine(output, sources, ended)
+        try {
+            engine.load(song("spotify:track:0123456789012345678901"))
+            await("Spotify source opened") { sources.size == 1 && !engine.state.value.isLoading }
+            sources.single().emit(480)
+            await("PCM accepted") { output.submitted.get() == 480L }
+            sources.single().events.put { throw SpotifyPcmException(313) }
+            await("provider refusal reported") { engine.state.value.error != null }
+            assertTrue(engine.state.value.error.orEmpty().contains("restricted"))
+            assertEquals(1, sources.size)
+            assertEquals(0, ended.get())
+            assertFalse(engine.state.value.isPlaying)
+        } finally { engine.shutdown() }
+    }
+
+    @Test fun `paused next falls back to a cut while a ready playing deck can mix`() {
+        val output = Output().apply { autoPlay = true }
+        val sources = CopyOnWriteArrayList<Source>()
+        val ready = CompletableDeferred<Unit>()
+        val engine = engine(output, sources, incomingReady = ready)
+        try {
+            engine.setSkipMixEnabled(true)
+            engine.load(song("A"), playWhenReady = false)
+            await("paused A opened") { sources.size == 1 && !engine.state.value.isLoading }
+            engine.prepareNext(song("B"))
+            runBlocking { withTimeout(3_000) { ready.await() } }
+            // Upcoming is queued before the pending-upgrade callback; a seek is a command barrier.
+            engine.seekTo(123)
+            await("ready deck installed while paused") { sources.first().seekUs.get() == 123_000L }
+            assertFalse(engine.beginSkipMix("B", 4), "paused Next must take the caller's ordinary queue-advance path")
+
+            engine.play()
+            sources.first().emit(480)
+            await("A resumed") { engine.state.value.isPlaying && !engine.state.value.awaitingAudio }
+            assertTrue(engine.beginSkipMix("B", 4), "a ready deck can still mix during playback")
+        } finally { engine.shutdown() }
     }
 
     @Test fun `shutdown waits for decoder owned close after the audio pump stops`() {
@@ -316,21 +381,57 @@ class DesktopAudioRecoveryTest {
         } finally { engine.shutdown() }
     }
 
-    private fun startFade(engine: DesktopPlaybackEngine, sources: MutableList<Source>, output: Output, incomingReady: CompletableDeferred<Unit>, incomingFrames: Int = 48_000) {
+    private fun startFade(engine: DesktopPlaybackEngine, sources: MutableList<Source>, output: Output, incomingReady: CompletableDeferred<Unit>, incomingFrames: Int = 48_000, outgoingSong: Song = song("A"), incomingSong: Song = song("B")) {
         engine.setCrossfadeSeconds(1)
-        engine.load(song("A"))
+        engine.load(outgoingSong)
         await("A opened") { sources.size == 1 && !engine.state.value.isLoading }
-        engine.prepareNext(song("B"))
+        engine.prepareNext(incomingSong)
         // upgradeIncoming awaits only after Upcoming was enqueued. The following seek acts as
         // a command barrier, so it cannot complete before the incoming deck is installed.
-        runBlocking { withTimeout(3_000) { incomingReady.await() } }
-        engine.seekTo(59_000)
-        await("A seek applied") { sources.first().seekUs.get() == 59_000_000L }
+        runBlocking { withTimeout(20_000) { incomingReady.await() } }
+        engine.seekTo(58_990)
+        await("A seek applied") { sources.first().seekUs.get() == 58_990_000L }
         sources.last().emit(incomingFrames)
         sources.first().emit(480)
-        await("primer starts fade") { output.submitted.get() >= 480 }
-        // Wait for the primer's state publication to finish before delivering the final block.
-        await("primer clock sampled") { engine.state.value.positionMs >= 59_010 }
+        await("unmixed primer reaches the fade boundary") { output.submitted.get() >= 480 }
+        // The primer precedes 59s; the following block owns the full one-second fade.
+        await("primer clock sampled") { engine.state.value.positionMs >= 59_000 }
+    }
+
+    @Test fun `analysis status follows the new current track and unsupported queue item after a blend`() {
+        val home = DesktopTrackAnalyzer.analysisCacheHome()
+        val testData = java.io.File(checkNotNull(System.getProperty("bitchord.dataDir"))).canonicalFile
+        assertTrue(home.canonicalFile.toPath().startsWith(testData.toPath()))
+        val outgoing = song("analysed-${java.util.UUID.randomUUID()}")
+        val incoming = song("unmeasured-${java.util.UUID.randomUUID()}")
+        val cache = java.io.File(java.io.File(home, "smart_analysis"), "${outgoing.videoId.hashCode().toUInt()}_${outgoing.videoId.length}.json")
+        assertFalse(cache.exists())
+        val output = Output().apply { autoPlay = true }
+        val sources = CopyOnWriteArrayList<Source>()
+        val crossfaded = AtomicInteger()
+        val ready = CompletableDeferred<Unit>()
+        val engine = engine(output, sources, crossfaded = crossfaded, incomingReady = ready, pendingIncomingId = incoming.videoId)
+        try {
+            com.music.bitchord.playback.smart.AnalysisStore { home }.save(outgoing.videoId,
+                com.music.bitchord.playback.smart.TrackAnalysis(status = com.music.bitchord.playback.smart.TrackAnalysis.STATUS_READY,
+                    trackId = outgoing.videoId, bpm = 120.0))
+            startFade(engine, sources, output, ready, outgoingSong = outgoing, incomingSong = incoming)
+            await("outgoing measured status published") { engine.state.value.smartAnalysis.current.isMeasured }
+            sources.first().emit(48_000)
+            await("blend handed off to incoming track") { crossfaded.get() == 1 && engine.state.value.song?.videoId == incoming.videoId }
+            engine.prepareNext(song("unsupported-${java.util.UUID.randomUUID()}").copy(isVideoOrigin = true))
+            await("status pair follows incoming track and its next item") {
+                val status = engine.state.value.smartAnalysis
+                status.current.state == com.music.bitchord.data.settings.TrackAnalysisState.WAITING &&
+                    status.next.eligibility == com.music.bitchord.data.settings.TrackAnalysisEligibility.VIDEO
+            }
+            assertFalse(engine.state.value.smartAnalysis.current.isMeasured, "outgoing evidence must not follow the display into the incoming song")
+            assertEquals(com.music.bitchord.data.settings.TrackAnalysisEligibility.ELIGIBLE,
+                engine.state.value.smartAnalysis.current.eligibility)
+        } finally {
+            engine.shutdown()
+            assertTrue(!cache.exists() || cache.delete(), "synthetic cached analysis must be removed")
+        }
     }
 
     @Test fun `the final fade block retains its owner until every frame is accepted`() {
@@ -387,7 +488,7 @@ class DesktopAudioRecoveryTest {
             await("partial block accepted") { output.submitted.get() == 960L }
             engine.setCrossfadeSeconds(0)
             assertTrue(sources[1].closed.await(1, TimeUnit.SECONDS))
-            await("unwritten mixed PCM discarded and outgoing decoder rebased") { sources.first().seekUs.get() == 59_020_000L }
+            await("unwritten mixed PCM discarded and outgoing decoder rebased") { sources.first().seekUs.get() == 59_010_000L }
             sources.first().emit(480)
             await("ordinary playback continues") { output.submitted.get() == 1_440L }
             assertEquals(0, crossfaded.get())
@@ -402,17 +503,43 @@ class DesktopAudioRecoveryTest {
         val ready = CompletableDeferred<Unit>()
         val engine = engine(output, sources, incomingReady = ready)
         val first = AtomicBoolean(true)
+        val mixedWrites = AtomicInteger()
         output.acceptFrames = { frames ->
-            if (frames < 10_000) frames else if (first.getAndSet(false)) 480 else 0
+            if (frames < 10_000) frames else {
+                mixedWrites.incrementAndGet()
+                if (first.getAndSet(false)) 480 else 0
+            }
         }
         try {
             startFade(engine, sources, output, ready)
             sources.first().emit(28_800)
-            await("incoming shown with drained output") { engine.state.value.song?.videoId == "B" && engine.state.value.awaitingAudio }
+            await("incoming shown after a partial write and a drained-output retry") {
+                mixedWrites.get() >= 2 && engine.state.value.song?.videoId == "B" && engine.state.value.awaitingAudio
+            }
             assertEquals(10L, engine.state.value.positionMs)
             val held = engine.state.value.positionMs
             Thread.sleep(100)
             assertEquals(held, engine.state.value.positionMs)
+        } finally { engine.shutdown() }
+    }
+
+    @Test fun `midpoint observation excludes a mixed block before its first output write`() {
+        val output = Output().apply { autoPlay = true }
+        val sources = CopyOnWriteArrayList<Source>()
+        val ready = CompletableDeferred<Unit>()
+        val engine = engine(output, sources, incomingReady = ready)
+        val observed = AtomicLong(-1)
+        output.acceptFrames = { frames ->
+            if (frames < 10_000) frames else {
+                observed.compareAndSet(-1, engine.state.value.positionMs)
+                0
+            }
+        }
+        try {
+            startFade(engine, sources, output, ready)
+            sources.first().emit(28_800)
+            await("first mixed write observed") { observed.get() >= 0 }
+            assertEquals(0L, observed.get(), "Rendering a block must not advance the incoming track before it is accepted")
         } finally { engine.shutdown() }
     }
 

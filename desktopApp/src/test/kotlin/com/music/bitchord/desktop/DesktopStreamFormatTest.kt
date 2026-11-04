@@ -10,6 +10,16 @@ import kotlin.test.assertTrue
  * they draw has to mean the same thing it means on Android.
  */
 class DesktopStreamFormatTest {
+    @Test fun `decoded float samples do not establish an unknown original encoding as hi res`() {
+        val boundary = DesktopStreamFormat(sampleRateHz = 44_100, channels = 2, bitDepth = 32,
+            observedProfile = "Float PCM (helper boundary; original codec unknown)",
+            decoderName = "librespot PCM helper", sourceDeclaredAtmos = false)
+        assertFalse(boundary.isLossless)
+        assertFalse(boundary.isHiRes)
+        assertFalse(boundary.isDolbyAtmos)
+        assertTrue(checkNotNull(boundary.nerdSnapshot("spotify-native").audioDiagnostics).actualFormat.contains("Float PCM"))
+    }
+
 
     @Test
     fun `ffmpeg codec names are recognised as lossless`() {
@@ -44,9 +54,18 @@ class DesktopStreamFormatTest {
 
     @Test
     fun `dolby atmos is distinct from lossless`() {
-        val atmos = DesktopStreamFormat(codec = "eac3", kbps = 768)
+        val atmos = DesktopStreamFormat(codec = "eac3-joc", kbps = 768)
         assertTrue(atmos.isDolbyAtmos)
         assertFalse(atmos.isLossless)
+    }
+
+    @Test
+    fun `ordinary DD plus never claims object audio`() {
+        for (codec in listOf("eac3", "ec-3", "audio/eac3")) {
+            assertFalse(DesktopStreamFormat(codec = codec).isDolbyAtmos, codec)
+        }
+        assertFalse(com.music.bitchord.data.NerdStats.isDolbyAtmosMime("audio/eac3"))
+        assertTrue(com.music.bitchord.data.NerdStats.isDolbyAtmosMime("audio/eac3-joc"))
     }
 
     @Test

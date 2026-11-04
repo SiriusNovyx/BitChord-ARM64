@@ -36,7 +36,7 @@ class WindowsArchitectureTest(unittest.TestCase):
             verifier.pe_architecture(pe(0xa641))
 
     def test_runtime_requires_native_java_and_jvm(self):
-        with tempfile.TemporaryDirectory(dir=Path.cwd() / '.work') as directory:
+        with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / 'bin/server').mkdir(parents=True)
             (root / 'bin/java.exe').write_bytes(pe(0xaa64))
@@ -50,7 +50,7 @@ class WindowsArchitectureTest(unittest.TestCase):
                 verifier.verify_runtime(root, 'arm64')
 
     def test_checks_bytes_in_a_renamed_arm64_jar(self):
-        with tempfile.TemporaryDirectory(dir=Path.cwd() / '.work') as directory:
+        with tempfile.TemporaryDirectory() as directory:
             jar = Path(directory) / 'fake-windows-arm64.jar'
             with zipfile.ZipFile(jar, 'w') as archive:
                 archive.writestr('windows-arm64/decoder.dll', pe(0x8664))
@@ -58,7 +58,7 @@ class WindowsArchitectureTest(unittest.TestCase):
                 verifier.verify_jar(jar, 'arm64')
 
     def test_universal_jna_and_sqlite_select_only_the_requested_architecture(self):
-        with tempfile.TemporaryDirectory(dir=Path.cwd() / '.work') as directory:
+        with tempfile.TemporaryDirectory() as directory:
             jar = Path(directory) / 'universal.jar'
             with zipfile.ZipFile(jar, 'w') as archive:
                 archive.writestr('com/sun/jna/win32-x86-64/jnidispatch.dll', pe(0x8664))
@@ -70,7 +70,7 @@ class WindowsArchitectureTest(unittest.TestCase):
             self.assertEqual(2, len(verifier.verify_jar(jar, 'x64')))
 
     def test_checks_executable_helpers_inside_application_jars(self):
-        with tempfile.TemporaryDirectory(dir=Path.cwd() / '.work') as directory:
+        with tempfile.TemporaryDirectory() as directory:
             jar = Path(directory) / 'app.jar'
             for architecture, wrong_machine in (('arm64', 0x8664), ('x64', 0xaa64)):
                 with zipfile.ZipFile(jar, 'w') as archive:
@@ -79,7 +79,7 @@ class WindowsArchitectureTest(unittest.TestCase):
                     verifier.verify_jar(jar, architecture)
 
     def test_universal_junixsocket_selects_requested_windows_native_and_checks_its_bytes(self):
-        with tempfile.TemporaryDirectory(dir=Path.cwd() / '.work') as directory:
+        with tempfile.TemporaryDirectory() as directory:
             jar = Path(directory) / 'junixsocket-native-common.jar'
             arm = 'lib/aarch64-Windows10-clang/jni/junixsocket-native.dll'
             x64 = 'lib/amd64-Windows10-clang/jni/junixsocket-native.dll'

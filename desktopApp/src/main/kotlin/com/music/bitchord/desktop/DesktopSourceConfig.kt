@@ -51,13 +51,21 @@ internal enum class DesktopSourceKind(
         supportsLossless = false,
         rank = 2,
     ),
+    SPOTIFY(
+        label = "Spotify",
+        detail = "Unavailable for ordered cross-provider playback. The existing native Spotify player remains separate.",
+        labels = emptyList(),
+        needsServer = false,
+        supportsLossless = false,
+        rank = 3,
+    ),
     YOUTUBE(
         label = "YouTube Music",
         detail = "Lossy · Full catalogue · Radio",
         labels = listOf("Lossy", "Full catalogue", "Radio"),
         needsServer = false,
         supportsLossless = false,
-        rank = 3,
+        rank = 4,
     ),
 }
 
@@ -102,7 +110,7 @@ internal data class DesktopSourceConfig(
     val kind: DesktopSourceKind,
     val label: String = "",
     val baseUrl: String = "",
-    val enabled: Boolean = true,
+    val enabled: Boolean = kind != DesktopSourceKind.JIOSAAVN && kind != DesktopSourceKind.SPOTIFY,
     /** The addon manifest's `allowDownloads`, as last read. */
     val allowDownloads: Boolean = true,
 ) {
@@ -119,15 +127,12 @@ internal data class DesktopSourceConfig(
 
     /** Whether this entry exists because the user added it, and so can be removed. */
     val isUserAdded: Boolean
-        get() = kind == DesktopSourceKind.ADDON || kind == DesktopSourceKind.CUSTOM_MODULE
+        get() = kind == DesktopSourceKind.ADDON || kind == DesktopSourceKind.CUSTOM_MODULE || kind == DesktopSourceKind.MODULE
 }
 
-/**
- * The walk order: by kind rank, and within a rank by the order the list is stored in, which is the
- * order the user added or arranged them in.
- */
+/** The persisted order within each group, with user-added sources before built-ins. */
 internal fun List<DesktopSourceConfig>.inSourceOrder(): List<DesktopSourceConfig> =
-    sortedBy { it.kind.rank }
+    sortedBy { if (it.isUserAdded) 0 else 1 }
 
 /** URL identity used to reject a second config for the same addon. */
 internal fun canonicalSourceUrl(raw: String): String {
@@ -144,7 +149,8 @@ internal fun canonicalSourceUrl(raw: String): String {
         }
         val path = uri.rawPath.orEmpty().trimEnd('/').let { if (it == "/") "" else it }
         val query = uri.rawQuery?.let { "?$it" }.orEmpty()
-        "$scheme://$host$port$path$query"
+        val userInfo = uri.rawUserInfo?.let { "$it@" }.orEmpty()
+        "$scheme://$userInfo$host$port$path$query"
     }.getOrDefault(trimmed)
 }
 
@@ -154,18 +160,20 @@ internal fun List<DesktopSourceConfig>.duplicateOf(url: String, exceptId: String
     return firstOrNull { it.id != exceptId && canonicalSourceUrl(it.baseUrl) == wanted }
 }
 
-/** Moves one user-added source within the priority group shared by addons and legacy indexes. */
+/** Moves a source inside its own custom or built-in priority group. */
 internal fun moveUserSource(
     configs: List<DesktopSourceConfig>,
     sourceId: String,
     delta: Int,
 ): List<DesktopSourceConfig> {
-    val userAdded = configs.inSourceOrder().filter(DesktopSourceConfig::isUserAdded).toMutableList()
+    val source = configs.firstOrNull { it.id == sourceId } ?: return configs
+    val userAdded = configs.inSourceOrder().filter { it.isUserAdded == source.isUserAdded }.toMutableList()
     val from = userAdded.indexOfFirst { it.id == sourceId }
     if (from < 0) return configs
     val to = (from + delta).coerceIn(0, userAdded.lastIndex)
     if (from == to) return configs
     val moved = userAdded.removeAt(from)
     userAdded.add(to, moved)
-    return (userAdded + configs.filterNot(DesktopSourceConfig::isUserAdded)).inSourceOrder()
+    val others = configs.filter { it.isUserAdded != source.isUserAdded }
+    return (if (source.isUserAdded) userAdded + others else others + userAdded).inSourceOrder()
 }

@@ -15,10 +15,13 @@ import kotlin.math.exp
  * reason — it is a catcher for overs, not a mastering limiter, and most of the
  * time it does nothing at all.
  *
+ * The default ceiling retains EQ headroom; final output can use full scale after software volume.
  * Audio thread only. Call [gainFor] once per frame with that frame's loudest
  * channel, and multiply every channel of the frame by what it returns.
  */
-class PeakLimiter {
+class PeakLimiter(private val ceiling: Float = CEILING) {
+
+    init { require(ceiling.isFinite() && ceiling > 0f && ceiling <= 1f) }
 
     private var releaseCoef = 1f
     private var reduction = 1f
@@ -39,7 +42,7 @@ class PeakLimiter {
 
     /** What to multiply a frame by, given the magnitude of its loudest channel. */
     fun gainFor(peak: Float): Float {
-        val wanted = if (peak > CEILING) CEILING / peak else 1f
+        val wanted = if (peak > ceiling) ceiling / peak else 1f
         reduction = if (wanted < reduction) wanted else reduction + (wanted - reduction) * releaseCoef
         return reduction
     }

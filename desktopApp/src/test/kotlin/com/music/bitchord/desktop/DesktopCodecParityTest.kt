@@ -16,9 +16,8 @@ class DesktopCodecParityTest {
     }
 
     @Test
-    fun `dolby atmos is supported, which is what unblocks the top tier of several sources`() {
-        // Android asks the renderer for `audio/eac3-joc` or plain `audio/eac3` and takes either.
-        assertTrue(DesktopCodecs.supportsDolbyAtmos, "no E-AC-3 decoder, so Atmos stays declined")
+    fun `EAC3 core decoding permits selecting JOC renditions without claiming object rendering`() {
+        assertTrue(DesktopCodecs.canDecodeEac3Core, "no E-AC-3 core decoder")
     }
 
     @Test

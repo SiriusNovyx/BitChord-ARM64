@@ -52,11 +52,16 @@ internal class DesktopRateConverter(
     /** Where the next output frame sits, in frames of [held]. */
     private var position = reachFrames.toDouble()
     private var output = FloatArray(0)
+    private var inputFrames = 0L
+    private var outputFrames = 0L
+    private var finished = false
 
     var outputCount: Int = 0
         private set
 
     fun process(input: FloatArray, count: Int): FloatArray {
+        check(!finished) { "A completed rate converter cannot accept a new stream" }
+        inputFrames += count / channels
         append(input, count)
         val capacity = (((heldFrames - position) / step).toInt() + 2) * channels
         if (output.size < capacity) output = FloatArray(capacity)
@@ -74,6 +79,28 @@ internal class DesktopRateConverter(
             position -= keepFrom
         }
         outputCount = produced
+        outputFrames += produced / channels
+        return output
+    }
+
+    /** Complete the real input's duration using zero extension for the kernel's remaining support. */
+    fun finish(): FloatArray {
+        outputCount = 0
+        if (finished) return output
+        finished = true
+        val totalFrames = (inputFrames * toRate + fromRate - 1) / fromRate
+        val remaining = (totalFrames - outputFrames).coerceAtLeast(0).toInt()
+        if (remaining == 0) return output
+        val paddedFrames = heldFrames + reachFrames + 1
+        if (held.size < paddedFrames * channels) held = held.copyOf(paddedFrames * channels)
+        held.fill(0f, heldFrames * channels, paddedFrames * channels)
+        if (output.size < remaining * channels) output = FloatArray(remaining * channels)
+        repeat(remaining) { frame ->
+            render(position, frame * channels)
+            position += step
+        }
+        outputCount = remaining * channels
+        outputFrames += remaining
         return output
     }
 

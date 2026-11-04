@@ -3,10 +3,8 @@ package com.music.bitchord.data.sources
 /**
  * The kinds of source this build knows how to talk to.
  *
- * Fixed and small on purpose. **[rank] is the order sources are tried** — see
- * `SourceRegistry.active()`, which sorts on it — so the sources a user added
- * come first, then the legacy built-in module kind, then JioSaavn, then
- * YouTube Music. Adding a source means adding a [MusicSource]
+ * [rank] supplies the initial migration order. Saved order within the custom
+ * and built-in groups governs subsequent resolution. Adding a source means adding a [MusicSource]
  * implementation and an entry here, which is the point — every protocol the
  * app speaks is one someone can read in this repo, and a source can't teach
  * the app a new way to behave after it ships.
@@ -137,6 +135,15 @@ enum class SourceKind(
         rank = 2,
     ),
 
+    SPOTIFY(
+        label = "Spotify",
+        detail = "Unavailable for ordered playback: no supported cross-provider streaming integration.",
+        labels = listOf("Unavailable"),
+        needsServer = false,
+        canServeLossless = false,
+        rank = 3,
+    ),
+
     /**
      * The source the app was built on, listed here so it always has a fixed
      * place: second, behind the module source. It cannot be removed — see
@@ -150,7 +157,7 @@ enum class SourceKind(
         labels = listOf("Lossy", "Full catalogue", "Radio"),
         needsServer = false,
         canServeLossless = false,
-        rank = 3,
+        rank = 4,
     ),
     ;
 

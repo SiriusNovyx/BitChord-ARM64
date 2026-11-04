@@ -89,4 +89,6 @@
     <string name="d_translation_unavailable">Traduction indisponible</string>
     <string name="d_what_the_translate_button_translates_into">La langue vers laquelle le bouton Traduire convertit les paroles</string>
     <string name="d_off">Désactivé</string>
+    <string name="pipeline_unknown">Inconnu</string>
+    <string name="pipeline_no_app_resampling">Aucune conversion de fréquence d’échantillonnage dans l’application</string>
 </resources>

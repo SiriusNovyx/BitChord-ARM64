@@ -1,3 +1,5 @@
+> Historical baseline: validation and measurements below predate the comprehensive v1.8.1 integration. See [the current integration record](upstream-v181-integration.md) for current source, packages and verification status. Earlier selective-import policy is superseded.
+
 # Desktop performance measurements, 2026-10-15
 
 The measurements below precede the DPI-size correction in `Main.kt`. Their

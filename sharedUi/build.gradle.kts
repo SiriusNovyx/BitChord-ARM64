@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import com.music.bitchord.build.DesktopTarget
 
 /*
  * The Compose UI both applications draw from — the player first.
@@ -23,7 +24,7 @@ val cmp = "1.10.3"
 
 /** What the desktop graph resolves; see the comment above. */
 val CMP_DESKTOP =
-    // Haze 1.7.x, which the Windows build uses (see desktopApp/build.gradle.kts), was compiled
+    // Haze 1.7.x, which the Windows build uses, was compiled
     // against a ShaderBrush.createShader that returns skia's Shader; 1.12 changed that return
     // type, so on 1.12 every blur dies with NoSuchMethodError. Windows stays on the plugin's
     // own 1.10.3 / skiko 0.9; only Linux moves to 1.12.
@@ -72,6 +73,7 @@ kotlin {
         // rather than in commonMain.
         val jvmSharedMain by creating {
             dependsOn(commonMain.get())
+            kotlin.srcDir(rootProject.file("sharedUi/src/mixUi/kotlin"))
         }
         androidMain.get().dependsOn(jvmSharedMain)
         jvmMain.get().dependsOn(jvmSharedMain)
@@ -100,8 +102,18 @@ kotlin {
             api("org.jetbrains.compose.ui:ui-desktop:$CMP_DESKTOP")
         }
         jvmTest.dependencies {
+            runtimeOnly("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.9.0")
             implementation(kotlin("test"))
             implementation("junit:junit:4.13.2")
+            val windows = System.getProperty("os.name").contains("Windows", ignoreCase = true)
+            val arch = DesktopTarget.architecture(
+                System.getProperty("os.name"), System.getProperty("os.arch"),
+                if (windows) DesktopTarget.windowsNativeArchitecture() else null,
+                providers.gradleProperty("bitchord.arch").orNull,
+            )
+            runtimeOnly(if (windows)
+                "org.jetbrains.compose.desktop:desktop-jvm-windows-$arch:$CMP_DESKTOP"
+            else compose.desktop.currentOs)
         }
         androidMain.dependencies {
             // The phone's own versions, so nothing here moves them.

@@ -89,4 +89,6 @@
     <string name="d_translation_unavailable">ไม่สามารถแปลได้</string>
     <string name="d_what_the_translate_button_translates_into">ภาษาปลายทางของปุ่มแปลเนื้อเพลง</string>
     <string name="d_off">ปิด</string>
+    <string name="pipeline_unknown">ไม่ทราบ</string>
+    <string name="pipeline_no_app_resampling">แอปไม่ได้แปลงอัตราการสุ่มตัวอย่าง</string>
 </resources>

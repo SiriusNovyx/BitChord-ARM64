@@ -9,8 +9,24 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class DesktopSpotifyPcmTest {
+    @Test fun `application enforcement is reported without a reconnect workaround`() {
+        val frame = bytes(3 to floatArrayOf()).also {
+            ByteBuffer.wrap(it, it.size - 4, 4).order(ByteOrder.LITTLE_ENDIAN).putInt(313)
+        }
+        val failure = assertFailsWith<SpotifyPcmException> {
+            SpotifyPcmProtocol(ByteArrayInputStream(frame)).next()
+        }
+        assertEquals(313, failure.code)
+        assertTrue(failure.message.orEmpty().contains("restricted", ignoreCase = true))
+        assertFalse(failure.message.orEmpty().contains("reconnect", ignoreCase = true))
+        assertFalse(failure.message.orEmpty().contains("other sources", ignoreCase = true),
+            "the application-ban code does not identify the reason for enforcement")
+    }
+
     private fun bytes(vararg frames: Pair<Int, FloatArray>): ByteArray {
         val out = ByteArrayOutputStream()
         out.write("BCSP".toByteArray())

@@ -54,6 +54,10 @@ Run a specific test:
 ./gradlew testDevDebugUnitTest --tests "com.music.bitchord.playback.audio.DirectAudioStreamingRegressionTest"
 ```
 
+### Native desktop in this fork
+
+The desktop uses desktopUi; Android and TV use sharedUi. Their packages and generated resources match, so a consuming module must depend on only one UI module. Native build details and architecture checks are in [DESKTOP.md](DESKTOP.md) and [docs/windows-arm64.md](docs/windows-arm64.md). The opt-in modern build uses gradlew-modern with -Pbitchord.modernBuild=true; the standard wrapper remains the Java 21 baseline. Application compilation targets are unchanged by the build JVM. See the [integration record](docs/upstream-v181-integration.md) for current validation status.
+
 ## Code Quality
 - Follow idiomatic Kotlin and Jetpack Compose conventions.
 - Maintain the project's existing architecture and separation of concerns (UI, domain logic, playback services, and data repositories).

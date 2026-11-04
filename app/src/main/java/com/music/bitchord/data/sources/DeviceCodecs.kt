@@ -4,6 +4,8 @@ import android.media.MediaCodecList
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import com.music.bitchord.data.TrackLog
+import com.music.bitchord.data.settings.AppSettings
+import com.music.bitchord.playback.audio.bitperfect.BitPerfectOutput
 import java.util.Locale
 
 /**
@@ -78,6 +80,17 @@ object DeviceCodecs {
     @Volatile
     private var probed: Boolean? = null
 
+    @Volatile
+    private var probeFailed = false
+
+    /** Decoder availability only; a JOC core decoder does not establish object rendering. */
+    val eac3DecoderAvailable: Boolean?
+        get() {
+            forced?.let { return it }
+            val result = playsDolbyAtmos
+            return if (probeFailed) null else result
+        }
+
     /**
      * Test seam, and the field override of last resort. The decision that
      * depends on this lives in [ModuleSource.unplayable] and is tested
@@ -98,6 +111,24 @@ object DeviceCodecs {
         get() = forced ?: probed ?: probe().also { probed = it }
 
     /**
+     * Whether sources should be asked for Dolby Atmos at all: this phone can
+     * decode it, the listener has it on, and no bit-perfect output is ready
+     * to take the music. Bit-perfect output carries stereo PCM only and
+     * bypasses the mixer where Atmos is rendered, so an Atmos track would
+     * only fall back to normal output; the stereo lossless version plays
+     * bit-perfect instead.
+     */
+    val atmosWanted: Boolean
+        get() = playsDolbyAtmos && AppSettings.dolbyAtmos.value && !BitPerfectOutput.ready.value
+
+    /** Why [atmosWanted] is false, for logs. */
+    fun atmosRefusal(): String = when {
+        !playsDolbyAtmos -> "which this device has no decoder for"
+        BitPerfectOutput.ready.value -> "which bit-perfect output cannot carry"
+        else -> "which is switched off in Settings"
+    }
+
+    /**
      * Yes on anything that cannot be established.
      *
      * A probe that fails outright is exotic and an unsupported device is not,
@@ -110,7 +141,7 @@ object DeviceCodecs {
     private fun probe(): Boolean {
         val viaMedia3 = media3Decoders()
         if (viaMedia3 != null) {
-            TrackLog.d(TAG, "Dolby Atmos decoders (Media3): ${viaMedia3.ifEmpty { "none" }}")
+            TrackLog.d(TAG, "E-AC-3 core/JOC decoders (Media3): ${viaMedia3.ifEmpty { "none" }}")
             return viaMedia3.isNotEmpty()
         }
         return runCatching {
@@ -120,11 +151,12 @@ object DeviceCodecs {
                 }
             }.map { it.name }
         }.onSuccess {
-            TrackLog.d(TAG, "Dolby Atmos decoders (platform): ${it.ifEmpty { "none" }}")
+            TrackLog.d(TAG, "E-AC-3 core/JOC decoders (platform): ${it.ifEmpty { "none" }}")
         }.map {
             it.isNotEmpty()
         }.getOrElse {
-            TrackLog.w(TAG, "could not read the codec list; assuming Dolby Atmos plays — ${it.message}")
+            probeFailed = true
+            TrackLog.w(TAG, "could not read the codec list; allowing a core playback attempt, capability unknown — ${it.message}")
             true
         }
     }

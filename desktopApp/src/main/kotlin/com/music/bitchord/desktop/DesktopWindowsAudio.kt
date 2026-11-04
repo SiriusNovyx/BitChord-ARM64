@@ -64,6 +64,19 @@ internal object DesktopWindowsAudio {
         return lastDeviceName
     }
 
+    fun route(): String? = if (!available) null else runCatching {
+        when (nativeAudioRoute()) {
+            "SPEAKERS" -> "Speakers"
+            "HEADPHONES" -> "Headphones"
+            "HDMI" -> "HDMI / display audio"
+            "SPDIF" -> "S/PDIF"
+            "USB" -> "USB"
+            "BLUETOOTH" -> "Bluetooth"
+            "OTHER" -> "Other"
+            else -> null
+        }
+    }.getOrNull()
+
     /**
      * The active render endpoints, keyed by their endpoint id; null when the native library is
      * missing, so the caller can fall back to Java Sound's mixers.
@@ -96,6 +109,7 @@ internal object DesktopWindowsAudio {
     @JvmStatic private external fun nativeDrain()
     @JvmStatic private external fun nativeClose()
     @JvmStatic private external fun nativeDeviceName(): String
+    @JvmStatic private external fun nativeAudioRoute(): String
     @JvmStatic private external fun nativeLastError(): String
 
     private const val LIBRARY = "bitchord_window"

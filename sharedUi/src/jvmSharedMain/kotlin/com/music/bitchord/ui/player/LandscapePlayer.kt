@@ -1,5 +1,7 @@
 package com.music.bitchord.ui.player
 
+import com.music.bitchord.data.settings.PlayerLayout
+
 import com.music.bitchord.sharedui.resources.*
 
 import androidx.compose.animation.Crossfade
@@ -23,6 +25,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -59,8 +62,11 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
 import coil3.request.ImageRequest
+import com.music.bitchord.ui.components.ExplicitBadge
+import com.music.bitchord.ui.components.menuAnchor
 import com.music.bitchord.ui.haptics.Haptic
 import com.music.bitchord.ui.icons.BitChordIcons
+import com.music.bitchord.ui.theme.stableStatusBarInsets
 import com.music.bitchord.data.canvas.CanvasArtwork
 import com.music.bitchord.data.model.LikeStatus
 import com.music.bitchord.data.model.Song
@@ -103,6 +109,9 @@ private const val LANDSCAPE_PANE_FADE_OUT_MS = 140
 /** Which of its three things the player's content column is showing. */
 internal enum class PlayerPane { Main, Lyrics, Queue }
 
+internal fun landscapePlayerPane(layout: PlayerLayout, requested: PlayerPane): PlayerPane =
+    if (layout == PlayerLayout.Modern && requested == PlayerPane.Main) PlayerPane.Lyrics else requested
+
 /** The landscape sleeve's corner radius, at rest. */
 internal val LANDSCAPE_ART_CORNER = 10.dp
 
@@ -135,6 +144,81 @@ private val LANDSCAPE_HANDLE_STRIP = 24.dp
  */
 @Composable
 internal fun LandscapePlayerLayout(
+    layout: PlayerLayout,
+    pane: PlayerPane,
+    background: @Composable (Modifier) -> Unit,
+    artwork: @Composable (Modifier) -> Unit,
+    actions: @Composable () -> Unit,
+    controls: @Composable (compact: Boolean) -> Unit,
+    lyricsPane: @Composable () -> Unit,
+    queuePane: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    when (layout) {
+        PlayerLayout.Modern -> ModernLandscapePlayerLayout(
+            pane, background, artwork, actions, controls, lyricsPane, queuePane, modifier,
+        )
+        PlayerLayout.Classic -> ClassicLandscapePlayerLayout(
+            pane, background, artwork, actions, controls, lyricsPane, queuePane, modifier,
+        )
+    }
+}
+
+@Composable
+private fun ModernLandscapePlayerLayout(
+    pane: PlayerPane,
+    background: @Composable (Modifier) -> Unit,
+    artwork: @Composable (Modifier) -> Unit,
+    actions: @Composable () -> Unit,
+    controls: @Composable (compact: Boolean) -> Unit,
+    lyricsPane: @Composable () -> Unit,
+    queuePane: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(modifier.fillMaxSize()) {
+        background(Modifier.fillMaxSize())
+        BoxWithConstraints(
+            Modifier.fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing.union(stableStatusBarInsets())),
+            contentAlignment = Alignment.TopCenter,
+        ) {
+            val compact = maxHeight < LANDSCAPE_COMPACT_HEIGHT
+            val gutter = if (compact) LANDSCAPE_GUTTER_COMPACT else PLAYER_GUTTER
+            Row(
+                Modifier.widthIn(max = LANDSCAPE_PLAYER_MAX_WIDTH).fillMaxSize()
+                    .padding(top = LANDSCAPE_HANDLE_STRIP, bottom = if (compact) 8.dp else 20.dp),
+            ) {
+                Column(
+                    Modifier.weight(1f).fillMaxHeight().padding(horizontal = gutter),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    BoxWithConstraints(
+                        Modifier.weight(1f).fillMaxWidth(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        artwork(Modifier.size(minOf(maxWidth, maxHeight)))
+                    }
+                    Spacer(Modifier.height(if (compact) 4.dp else 16.dp))
+                    controls(compact)
+                    Spacer(Modifier.height(if (compact) 4.dp else 12.dp))
+                    actions()
+                }
+                Box(Modifier.weight(1f).fillMaxHeight().padding(horizontal = PLAYER_GUTTER)) {
+                    if (landscapePlayerPane(PlayerLayout.Modern, pane) == PlayerPane.Queue) queuePane() else lyricsPane()
+                }
+            }
+            Box(
+                Modifier.align(Alignment.TopCenter).offset(y = 8.dp).width(38.dp).height(5.dp)
+                    .shadow(2.dp, RoundedCornerShape(3.dp), clip = false)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(LocalPlayerTint.current.copy(alpha = 0.70f)),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ClassicLandscapePlayerLayout(
     pane: PlayerPane,
     background: @Composable (Modifier) -> Unit,
     /** The sleeve; handed a modifier that already fixes its square size. */
@@ -142,7 +226,7 @@ internal fun LandscapePlayerLayout(
     /** The row under the sleeve, emitted into its column. */
     actions: @Composable () -> Unit,
     /** Credits and transport. [compact] is a phone-height window. */
-    mainPane: @Composable (compact: Boolean) -> Unit,
+    controls: @Composable (compact: Boolean) -> Unit,
     lyricsPane: @Composable () -> Unit,
     queuePane: @Composable () -> Unit,
     modifier: Modifier = Modifier,
@@ -153,7 +237,9 @@ internal fun LandscapePlayerLayout(
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing),
+                // The status bar counted whether or not it is showing, so the
+                // layout holds still when the player hides it.
+                .windowInsetsPadding(WindowInsets.safeDrawing.union(stableStatusBarInsets())),
             contentAlignment = Alignment.TopCenter,
         ) {
             val compact = maxHeight < LANDSCAPE_COMPACT_HEIGHT
@@ -215,7 +301,7 @@ internal fun LandscapePlayerLayout(
                                 .padding(horizontal = gutter),
                             contentAlignment = Alignment.Center,
                         ) {
-                            mainPane(compact)
+                            controls(compact)
                         }
                         // The lyric sheet and the queue both reach back across
                         // [PLAYER_GUTTER] on their own (see
@@ -250,7 +336,7 @@ internal fun LandscapePlayerLayout(
                     .height(5.dp)
                     .shadow(2.dp, RoundedCornerShape(3.dp), clip = false)
                     .clip(RoundedCornerShape(3.dp))
-                    .background(Color.White.copy(alpha = 0.70f)),
+                    .background(LocalPlayerTint.current.copy(alpha = 0.70f)),
             )
         }
     }
@@ -427,13 +513,15 @@ internal fun LandscapeCredits(
         ) {
             Column {
                 var titleOverflowing by remember { mutableStateOf(false) }
+                val artistColor = LocalPlayerTint.current.copy(alpha = 0.55f)
                 MarqueeText(
                     text = song.title,
                     style = MaterialTheme.typography.titleLarge,
                     color = Color.White,
                     onOverflowChange = { titleOverflowing = it },
+                    // Before the title, in the artist line's colour.
                     leading = if (song.isExplicit == true) {
-                        { ExplicitBadge(Color.White) }
+                        { ExplicitBadge(artistColor) }
                     } else {
                         null
                     },
@@ -446,7 +534,7 @@ internal fun LandscapeCredits(
                         artistCredits(song.artist, song.artists, song.artistId)
                     },
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.W500),
-                    color = Color.White.copy(alpha = 0.55f),
+                    color = artistColor,
                     // A title that's also scrolling gets to go first — starting
                     // together reads as clutter, so the artist waits a beat.
                     startDelayMillis = if (titleOverflowing) MARQUEE_ARTIST_STAGGER_MS else 0L,
@@ -456,12 +544,12 @@ internal fun LandscapeCredits(
         }
         Spacer(Modifier.width(10.dp))
         // Same gate as the portrait player's: no account to like against for a
-        // guest, and no YouTube identity to rate a local file or a finished
-        // download against either.
-        if (signedIn && song.localUri == null) {
+        // guest — but a local file or a finished download is liked on the
+        // device, which needs none.
+        if (signedIn || song.localUri != null) {
             val liked = likeStatus == LikeStatus.LIKE
             CircleGlyph(
-                icon = if (liked) BitChordIcons.HeartFilled else BitChordIcons.Heart,
+                icon = if (liked) BitChordIcons.StarFilled else BitChordIcons.Star,
                 contentDescription = stringResource(
                     if (liked) Res.string.remove_from_liked else Res.string.like,
                 ),
@@ -475,6 +563,7 @@ internal fun LandscapeCredits(
             icon = if (showRevertCue) Icons.AutoMirrored.Rounded.Undo else Icons.Rounded.MoreHoriz,
             contentDescription = stringResource(Res.string.more),
             onClick = onOpenMenu,
+            modifier = Modifier.menuAnchor(),
         )
     }
 }

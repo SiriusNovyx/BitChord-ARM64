@@ -89,4 +89,6 @@
     <string name="d_translation_unavailable">Перевод недоступен</string>
     <string name="d_what_the_translate_button_translates_into">На какой язык кнопка перевода переводит текст песни</string>
     <string name="d_off">Выключено</string>
+    <string name="pipeline_unknown">Неизвестно</string>
+    <string name="pipeline_no_app_resampling">Без преобразования частоты дискретизации в приложении</string>
 </resources>

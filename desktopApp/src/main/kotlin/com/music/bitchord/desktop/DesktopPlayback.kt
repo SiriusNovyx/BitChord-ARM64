@@ -46,6 +46,8 @@ data class DesktopPlaybackState(
     val durationMs: Long = 0L,
     val error: String? = null,
     val streamFormat: DesktopStreamFormat? = null,
+    /** Completed output renegotiation; a request alone must not change the displayed format. */
+    val outputRevision: Long = 0L,
     /** Which configured source is serving this — null before anything opened. */
     val streamSourceId: String? = null,
     /** Whether a source is still looking for a better copy of this track while it plays. */
@@ -85,6 +87,11 @@ data class DesktopStreamFormat(
     val bitDepth: Int? = null,
     /** How many channels the decoder is being fed; null before anything measured one. */
     val channels: Int? = null,
+    val observedProfile: String? = null,
+    val decoderName: String? = null,
+    val sourceDeclaredAtmos: Boolean? = null,
+    val outputRoute: String? = null,
+    val outputChannels: Int? = null,
 ) {
     /** The codec's short name, whether it arrived bare or inside a MIME type. */
     private val codecName: String?
@@ -99,9 +106,11 @@ data class DesktopStreamFormat(
                 codecName == "raw"
             )
 
-    /** Dolby Atmos decoded as E-AC-3 JOC; deliberately distinct from lossless. */
+    /** Explicit JOC input; ordinary E-AC-3 only establishes a DD+ core. */
     val isDolbyAtmos: Boolean
-        get() = codecName == "eac3" || codecName == "eac3-joc" || codecName == "ec-3"
+        get() = NerdStats.isDolbyAtmosMime(codecName) ||
+            observedProfile?.contains("atmos", ignoreCase = true) == true ||
+            observedProfile?.contains("joc", ignoreCase = true) == true
 
     /**
      * Better than CD — the line Tidal, Qobuz and Apple Music all draw it at: past 16-bit or past
@@ -115,7 +124,12 @@ data class DesktopStreamFormat(
         get() = !isLossless && (kbps ?: 0) >= HI_QUALITY_KBPS
 
     /** This format in the shape the shared stats line and the Discord quality line read. */
-    fun nerdSnapshot(sourceId: String?): NerdStats.Snapshot =
+    fun nerdSnapshot(
+        sourceId: String?,
+        preferenceEnabled: Boolean? = null,
+        decoderAvailable: Boolean? = null,
+        mediaId: String? = null,
+    ): NerdStats.Snapshot =
         NerdStats.Snapshot(
             mimeType = codecName?.let { "audio/$it" },
             bitrateKbps = kbps,
@@ -123,6 +137,18 @@ data class DesktopStreamFormat(
             channels = channels,
             bitDepth = bitDepth,
             sourceName = sourceId,
+            mediaId = mediaId,
+            audioDiagnostics = com.music.bitchord.data.AudioDiagnostics(
+                preferenceEnabled = preferenceEnabled,
+                sourceDeclaredAtmos = sourceDeclaredAtmos,
+                observedCodec = codecName,
+                observedProfile = observedProfile,
+                decoderAvailable = decoderAvailable,
+                decoderName = decoderName,
+                outputRoute = outputRoute,
+                outputChannels = outputChannels,
+                objectOutputConfirmed = outputRoute?.let { false },
+            ),
         )
 
     /** The rate to state on screen. */
@@ -144,7 +170,8 @@ data class DesktopStreamFormat(
             "mp3", "mpeg", "mpeg-4" -> "MP3"
             "flac" -> "FLAC"
             "alac" -> "ALAC"
-            "eac3", "ec-3", "eac3-joc" -> "E-AC-3"
+            "eac3", "ec-3" -> "E-AC-3"
+            "eac3-joc", "ec3-joc" -> "E-AC-3 JOC"
             "ac3" -> "AC-3"
             else -> if (name.startsWith("pcm_")) "PCM" else name.uppercase()
         }

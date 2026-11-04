@@ -11,6 +11,8 @@ internal interface DesktopAudioOutput {
     var gain: Float
     val isOpen: Boolean
     val deviceName: String?
+    val apiName: String? get() = null
+    val route: String? get() = null
     val bufferBytes: Int
     fun isUsingSelection(id: String): Boolean
     fun open(requested: DesktopPcmFormat): Result<DesktopPcmFormat>
@@ -49,6 +51,14 @@ internal class DesktopAudioSink : DesktopAudioOutput {
     override var gain: Float = 1f
 
     override val isOpen: Boolean get() = windowsOutput || line != null
+    override val apiName: String?
+        get() = when {
+            windowsOutput -> "WASAPI shared"
+            line != null -> "Java Sound"
+            else -> null
+        }
+    override val route: String?
+        get() = if (windowsOutput) DesktopWindowsAudio.route() else if (line != null) "Other · Java Sound" else null
 
     /** Whether the live line already belongs to the choice currently shown in the player. */
     override fun isUsingSelection(id: String): Boolean = isOpen && openedForSelection == id

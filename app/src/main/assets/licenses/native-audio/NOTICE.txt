@@ -1,0 +1,37 @@
+Native audio components in this Android / Android TV build
+
+BitChord's native LoopMix renderer and JNI bridge retain GPL-3.0-or-later.
+Shared LoopMix, Orchard-derived analysis and transition policies retain their
+AGPL-3.0-or-later attribution. The complete GPL and AGPL texts are included here.
+SOURCE-ATTRIBUTION.txt preserves the original inspected source headers.
+UPSTREAM-AutoMix-NOTICE.md is the original upstream Web attribution; its Web
+implementation descriptions do not assert native behavior or source availability
+for this unpublished integration.
+
+Signalsmith Stretch 1.3.2 and Signalsmith Linear 0.6.6 are header-only MIT
+components compiled into libbitchord_loopmix.so. Both original MIT texts are here.
+
+Oboe 1.11.0 (Apache-2.0) is statically linked into libbitchord_exclusive.so.
+libusb 1.0.27 (LGPL-2.1-or-later) is statically linked into libbitchord_usb.so.
+Both archives are SHA-256 pinned by app/src/main/cpp/CMakeLists.txt. Their
+original license texts and inspected attribution are included here.
+
+The AAudio/USB output JNI and listed Kotlin bit-perfect files adapt Mornye,
+Copyright 2026 zarzet, and retain LGPL-3.0-only headers. The LGPL3 text included
+here was retrieved from Mornye LICENSE at the revision in provenance.json.
+That retrieval revision identifies only the license text: the exact historical
+Mornye code revision used by the adaptation remains unresolved.
+
+The DST decoder is LGPL-2.1-or-later. Its exact COPYING and modification/provenance
+notice are included separately. Reverse engineering to debug modifications to
+the LGPL-covered components is permitted.
+
+These notices are not a completed distribution-compliance review. Corresponding
+source for the exact build, reproducible native/application build and required
+relinking/installation materials must be supplied through the release's approved
+source-distribution mechanism. Native SHARED containers do not by themselves
+establish LGPL replaceability for statically linked components. No assertion is
+made that the unpublished integration has been publicly released.
+
+Model/export provenance, unrelated SF Pro font permission and other component
+release gates remain separate. Do not infer those permissions from this notice.

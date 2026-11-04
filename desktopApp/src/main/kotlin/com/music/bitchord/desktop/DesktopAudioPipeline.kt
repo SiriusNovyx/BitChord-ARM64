@@ -20,6 +20,7 @@ internal data class DesktopAudioPipeline(
     val bufferBytes: Int = 0,
     val equalizerEnabled: Boolean = false,
     val skipSilence: Boolean = false,
+    val outputApi: String? = null,
 ) {
     /** The decoder under its usual name, the same one the quality badge shows. */
     val decoderLabel: String?

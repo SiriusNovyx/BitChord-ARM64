@@ -3,9 +3,7 @@
 .vscode/
 /build/
 /app/build/
-/desktopApp/bin/
 build/
-!**/com/music/bitchord/build/
 gradle-app.setting
 !gradle-wrapper.jar
 !gradle-wrapper.properties
@@ -47,3 +45,12 @@ desktopApp/native-dependencies/
 # AI agent configuration
 AGENTS.md
 /output/
+
+# Built packages — release APKs/bundles are handed out, never committed
+*.apk
+*.aab
+
+/desktopApp/bin/
+
+# Claude Code session files (launch configs, worktrees)
+.claude/

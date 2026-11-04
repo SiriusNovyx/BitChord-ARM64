@@ -272,14 +272,10 @@ class ModuleSource(
                     if (it < 1000) (it * 1000).toInt() else it.toInt()
                 }?.takeIf { it > 0 },
                 bitDepth = trackMeta?.bitDepth?.takeIf { it > 0 },
+                kbpsInferred = trackMeta?.bitrate == null,
             )
-            val playsAtmos = DeviceCodecs.playsDolbyAtmos
-            if (unplayable(format, atmosAllowed = playsAtmos && AppSettings.dolbyAtmos.value)) {
-                val why = if (playsAtmos) {
-                    "which is switched off in Settings"
-                } else {
-                    "which this device has no decoder for"
-                }
+            if (unplayable(format, atmosAllowed = DeviceCodecs.atmosWanted, eac3DecoderAvailable = DeviceCodecs.playsDolbyAtmos)) {
+                val why = DeviceCodecs.atmosRefusal()
                 TrackLog.w(
                     TAG,
                     "${config.displayName}: $moduleId answered a ${request.tier} request with " +
@@ -369,7 +365,7 @@ class ModuleSource(
         // ignore anything it is handed — the Tidal one ignores the tier and
         // asks its backend for `MAX` regardless — so this is the polite ask
         // and the check on the response is the guarantee.
-        "dolbyAtmos" to (DeviceCodecs.playsDolbyAtmos && AppSettings.dolbyAtmos.value).toString(),
+        "dolbyAtmos" to DeviceCodecs.atmosWanted.toString(),
     )
 
     private val StreamRequest.tier: String
@@ -501,8 +497,15 @@ class ModuleSource(
          * past the module to the copy it declined to offer, so on a device with
          * no Dolby decoder that track is YouTube's until the module is fixed.
          */
-        internal fun unplayable(format: StreamFormat, atmosAllowed: Boolean): Boolean =
-            format.isDolbyAtmos && !atmosAllowed
+        internal fun unplayable(
+            format: StreamFormat,
+            atmosAllowed: Boolean,
+            eac3DecoderAvailable: Boolean = true,
+        ): Boolean {
+            val codec = format.codec?.substringAfterLast('/')?.replace('_', '-')?.lowercase(Locale.ROOT)
+            val needsEac3Decoder = format.isDolbyAtmos || codec in setOf("eac3", "ec-3", "eac3-joc", "ec3-joc")
+            return (needsEac3Decoder && !eac3DecoderAvailable) || (format.isDolbyAtmos && !atmosAllowed)
+        }
 
         /**
          * The three tiers every compatible module speaks, whatever it

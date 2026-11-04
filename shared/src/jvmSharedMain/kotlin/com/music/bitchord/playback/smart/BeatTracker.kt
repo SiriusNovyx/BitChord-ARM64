@@ -84,22 +84,22 @@ class BeatTracker(
             session = null
             return runCatching {
                 val file = File(modelPath())
-                val options = OrtSession.SessionOptions().apply {
-                    setIntraOpNumThreads(threads)
-                    setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
+                OrtSession.SessionOptions().use { options ->
+                    options.setIntraOpNumThreads(threads)
+                    options.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT)
                     // ORT's arena allocator keeps every block it has ever needed, which for this
                     // graph is tens of megabytes of native heap retained for the life of the
                     // session, far past the model's own size, on a process that also has to
                     // survive in the background. Analysis runs a handful of times per track, so
                     // allocating per run is the right trade.
-                    setCPUArenaAllocator(false)
-                    setMemoryPatternOptimization(false)
+                    options.setCPUArenaAllocator(false)
+                    options.setMemoryPatternOptimization(false)
+                    OrtEnvironment.getEnvironment().createSession(file.absolutePath, options)
+                        .also {
+                            session = it
+                            sessionThreads = threads
+                        }
                 }
-                OrtEnvironment.getEnvironment().createSession(file.absolutePath, options)
-                    .also {
-                        session = it
-                        sessionThreads = threads
-                    }
             }.onFailure { AnalysisLog.warn("Beat model unavailable; falling back to no grid", it) }
                 .getOrNull()
         }
@@ -112,15 +112,19 @@ class BeatTracker(
      * back onto the full track's timeline rather than starting at zero.
      */
     fun track(pcm: FloatArray, offsetSeconds: Double = 0.0): Grid? {
+        if (Thread.currentThread().isInterrupted) return null
         val melStarted = System.currentTimeMillis()
         val spectrogram = MelSpectrogram.compute(pcm) ?: return null
+        if (Thread.currentThread().isInterrupted) return null
         val melMs = System.currentTimeMillis() - melStarted
         val active = session() ?: return null
+        if (Thread.currentThread().isInterrupted) return null
 
         val beatLogits = FloatArray(spectrogram.frames)
         val downbeatLogits = FloatArray(spectrogram.frames)
         val inferStarted = System.currentTimeMillis()
         if (!infer(active, spectrogram, beatLogits, downbeatLogits)) return null
+        if (Thread.currentThread().isInterrupted) return null
         AnalysisLog.warn("mel ${melMs}ms (${spectrogram.frames} frames) " +
                 "infer ${System.currentTimeMillis() - inferStarted}ms",
         )
@@ -170,6 +174,7 @@ class BeatTracker(
         beatLogits: FloatArray,
         downbeatLogits: FloatArray,
     ): Boolean = runCatching {
+        if (Thread.currentThread().isInterrupted) return@runCatching false
         val environment = OrtEnvironment.getEnvironment()
         val mels = spectrogram.mels
         val name = session.inputNames.first()
@@ -177,6 +182,7 @@ class BeatTracker(
 
         var start = 0
         while (start < spectrogram.frames) {
+            if (Thread.currentThread().isInterrupted) return@runCatching false
             val length = min(CHUNK_FRAMES, spectrogram.frames - start)
             // A chunk shorter than the border padding carries no usable centre.
             if (length <= 2 * BORDER_FRAMES && start > 0) break
@@ -186,6 +192,7 @@ class BeatTracker(
 
             OnnxTensor.createTensor(environment, FloatBuffer.wrap(chunk), shape).use { tensor ->
                 session.run(mapOf(name to tensor)).use { outputs ->
+                    if (Thread.currentThread().isInterrupted) return@runCatching false
                     val beat = (outputs.get(0).value as Array<FloatArray>)[0]
                     val downbeat = (outputs.get(1).value as Array<FloatArray>)[0]
 
@@ -216,8 +223,18 @@ class BeatTracker(
 
     companion object {
         private const val TAG = "BitChordBeatTracker"
-        /** The weights this tracker needs, named once for every build that ships them. */
-        const val MODEL_ASSET = "beat_this_int8.onnx"
+        /**
+         * The weights this tracker needs, named once for every build that ships them.
+         *
+         * v1.9 uses the final0 checkpoint with only its MatMuls quantized (int8, per channel);
+         * the convolutions stay float. Its distinct name prevents an unpacked legacy model
+         * from being mistaken for these weights. The earlier export also returns beats in
+         * the local generated-loop comparison; model quality needs representative recordings.
+         */
+        const val MODEL_ASSET = "beat_this_final0_q8.onnx"
+
+        /** Legacy installed asset name; comparison archives are kept separately from runtime assets. */
+        const val RETIRED_MODEL_ASSET = "beat_this_int8.onnx"
         /** The window the model was trained on, and the margin discarded from each chunk's edges. */
         const val CHUNK_FRAMES = 1500
         const val BORDER_FRAMES = 6
@@ -269,21 +286,23 @@ class BeatTracker(
             }
 
             // Collapse adjacent frames that tied for the maximum onto their mean.
-            val deduped = ArrayList<Int>()
+            val deduped = ArrayList<Double>()
             var index = 0
             while (index < peaks.size) {
                 var mean = peaks[index].toDouble()
                 var count = 1
-                while (index + 1 < peaks.size && peaks[index + 1] - mean <= 1) {
+                while (index + 1 < peaks.size && peaks[index + 1] - peaks[index] == 1) {
                     index += 1
                     count += 1
                     mean += (peaks[index] - mean) / count
                 }
-                deduped += mean.roundToInt()
+                deduped += mean
                 index += 1
             }
 
-            return deduped.map { frame ->
+            return deduped.map { position ->
+                val frame = position.toInt()
+                if (position != frame.toDouble()) return@map position
                 if (frame <= 0 || frame + 1 >= logits.size) return@map frame.toDouble()
                 val left = logits[frame - 1].toDouble()
                 val centre = logits[frame].toDouble()

@@ -20,6 +20,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Canvas as BitmapCanvas
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.unit.IntOffset
@@ -29,15 +32,17 @@ import com.music.bitchord.data.canvas.CanvasSource
 import com.music.bitchord.ui.player.CanvasContentMode
 import com.music.bitchord.ui.player.CanvasVideoSpec
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.isActive
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
 import org.jetbrains.skia.ColorAlphaType
 import org.jetbrains.skia.Image
 import org.jetbrains.skia.ImageInfo
 import kotlin.math.roundToInt
+
+private data class PresentedCanvasFrame(val image: ImageBitmap, val positionMs: Long?)
 
 /**
  * The desktop's decoder behind the shared player's Canvas clip.
@@ -50,71 +55,95 @@ import kotlin.math.roundToInt
  * dissolve, and a pause that keeps the last frame on screen.
  */
 @Composable
-internal fun DesktopCanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) {
+internal fun DesktopCanvasVideo(
+    spec: CanvasVideoSpec,
+    modifier: Modifier,
+    visibilityPolicy: StateFlow<DesktopVisualPolicy> = DesktopPerformance.policy,
+) {
     val canvas = spec.canvas
-    val visualPolicy by DesktopPerformance.policy.collectAsState()
-    var frame by remember(canvas) { mutableStateOf<ImageBitmap?>(null) }
+    val visualPolicy by visibilityPolicy.collectAsState()
+    var displayed by remember(canvas) { mutableStateOf<PresentedCanvasFrame?>(null) }
+    val frame = displayed?.image
+    val latestFrame by rememberUpdatedState(frame)
     val rendered = frame != null
-    val running by rememberUpdatedState(spec.isPlaying && !spec.pausedForTransition)
+    var matchedStart by remember(canvas) { mutableStateOf(true) }
+    var firstFrameSettled by remember(canvas) { mutableStateOf(false) }
+    val request by rememberUpdatedState(CanvasPlaybackRequest(spec.isPlaying, spec.pausedForTransition,
+        visualPolicy.animateArtwork, spec.resumeDelayMs))
+    val startPosition by rememberUpdatedState(spec.startPositionMs)
     val reportAspect by rememberUpdatedState(spec.onAspectRatioChanged)
     val reportRendered by rememberUpdatedState(spec.onRenderedChanged)
     val reportFrame by rememberUpdatedState(spec.onFrameCaptured)
     val reportCover by rememberUpdatedState(spec.onCoverChanged)
+    val reportStill by rememberUpdatedState(spec.onStillCaptured)
+    val reportResumed by rememberUpdatedState(spec.onResumed)
     val presentationAlpha by rememberUpdatedState(spec.presentationAlpha)
 
     LaunchedEffect(canvas, visualPolicy.animateArtwork) {
-        if (!visualPolicy.animateArtwork) return@LaunchedEffect
-        // Round and round for as long as the clip is mounted: a canvas is a few
-        // seconds long, and the decoder cannot be relied on to rewind an HLS
-        // manifest itself, so each pass reopens it.
-        while (isActive) {
-            val decoder = DesktopCanvasDecoder()
-            val opened = withContext(Dispatchers.IO) {
-                var last: Result<Unit> = Result.failure(IllegalStateException("the clip could not be fetched"))
-                for (candidate in listOfNotNull(canvas.url, canvas.fallbackUrl)) {
-                    val source = if (isManifest(candidate)) {
-                        candidate
-                    } else {
-                        DesktopCanvasCache.fileFor(candidate)?.toAbsolutePath()?.toString() ?: continue
+        firstFrameSettled = false
+        if (!visualPolicy.animateArtwork) {
+            firstFrameSettled = true
+            return@LaunchedEffect
+        }
+        try {
+            withDesktopCanvasResource(DesktopCanvasDecoder()) { decoder ->
+                val opened = withContext(Dispatchers.IO) {
+                    var last: Result<Unit> = Result.failure(IllegalStateException("the clip could not be fetched"))
+                    for (candidate in listOfNotNull(canvas.url, canvas.fallbackUrl)) {
+                        val source = if (isManifest(candidate)) {
+                            candidate
+                        } else {
+                            DesktopCanvasCache.fileFor(candidate)?.toAbsolutePath()?.toString() ?: continue
+                        }
+                        last = decoder.open(source)
+                        if (last.isSuccess) break
                     }
-                    last = decoder.open(source)
-                    if (last.isSuccess) break
+                    last
                 }
-                last
-            }
-            if (opened.isFailure) {
-                DesktopTrackLog.log("canvas: ${opened.exceptionOrNull()?.message}")
-                withContext(Dispatchers.IO) { decoder.close() }
-                return@LaunchedEffect
-            }
-            reportAspect(decoder.width.toFloat() / decoder.height.coerceAtLeast(1))
-            var shown = 0
-            try {
+                if (opened.isFailure) {
+                    DesktopTrackLog.log("canvas: ${opened.exceptionOrNull()?.message}")
+                    return@LaunchedEffect
+                }
+                reportAspect(decoder.width.toFloat() / decoder.height.coerceAtLeast(1))
                 val pixels = ByteArray(decoder.width * decoder.height * 4)
                 val info = ImageInfo.makeN32(decoder.width, decoder.height, ColorAlphaType.OPAQUE)
-                while (isActive) {
-                    // Paused with the track, or for the length of the sleeve's
-                    // collapse: the last frame stays up, nothing is decoded.
-                    snapshotFlow { running }.first { it }
-                    val started = System.currentTimeMillis()
-                    val decoded = withContext(Dispatchers.IO) { decoder.nextFrame(pixels) }
-                    if (!decoded) break
-                    shown++
-                    // Handed to Skia rather than copied, so the next frame
-                    // cannot be decoded into the same array.
-                    frame = Image.makeRaster(info, pixels.copyOf(), decoder.width * 4).toComposeImageBitmap()
-                    val spent = System.currentTimeMillis() - started
-                    delay((decoder.frameIntervalMillis - spent).coerceAtLeast(0L))
+                val resumeAt = displayed?.positionMs ?: startPosition
+                val sought = resumeAt <= 0 || withContext(Dispatchers.IO) { decoder.seekTo(resumeAt) }
+                suspend fun decode(): Pair<ByteArray, Long?>? = withContext(Dispatchers.IO) {
+                    if (!decoder.nextFrame(pixels)) null else pixels.copyOf() to decoder.positionMs
                 }
-            } finally {
-                withContext(NonCancellable + Dispatchers.IO) { decoder.close() }
+                fun present(decoded: Pair<ByteArray, Long?>) {
+                    val image = Image.makeRaster(info, decoded.first, decoder.width * 4).toComposeImageBitmap()
+                    displayed = PresentedCanvasFrame(image, decoded.second)
+                }
+                // A paused/remounted clip still paints its matching first frame.
+                val first = decode()
+                if (first == null) {
+                    DesktopTrackLog.log("canvas: the clip decoded no frames; not looping it")
+                    return@LaunchedEffect
+                }
+                matchedStart = resumeAt <= 0 || (sought && first.second == resumeAt)
+                if (!matchedStart) reportStill(null, 0L)
+                present(first)
+                firstFrameSettled = true
+                playDesktopCanvasFrames(snapshotFlow { request }, intervalMillis = { decoder.frameIntervalMillis },
+                    decode = ::decode, present = ::present, onResumed = { reportResumed() },
+                    initialFramePresented = true)
             }
-            // A pass that drew nothing would spin: reopening cannot fix a clip
-            // with no frames in it.
-            if (shown == 0) {
-                DesktopTrackLog.log("canvas: the clip decoded no frames; not looping it")
-                return@LaunchedEffect
-            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            DesktopTrackLog.log("canvas: ${failure.message}")
+        } finally {
+            firstFrameSettled = true
+        }
+    }
+
+    LaunchedEffect(canvas, spec.captureStill, spec.pausedForTransition) {
+        if (spec.captureStill && spec.pausedForTransition) {
+            val still = snapshotFlow { displayed to firstFrameSettled }
+                .first { it.first != null || it.second }.first
+            reportStill(still?.image?.takeIf { still.positionMs != null }, still?.positionMs ?: 0L)
         }
     }
 
@@ -122,19 +151,19 @@ internal fun DesktopCanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) {
 
     // One frame once there is one, and then — for a caller re-tinting off the
     // clip — another every so often.
-    LaunchedEffect(rendered, spec.refreshFrameEveryMs, visualPolicy.animateArtwork) {
-        if (!rendered || !visualPolicy.animateArtwork) return@LaunchedEffect
-        frame?.let(reportFrame)
+    LaunchedEffect(rendered, spec.refreshFrameEveryMs, spec.frameCapturePx, visualPolicy.animateArtwork) {
+        if (!rendered || !visualPolicy.animateArtwork || spec.frameCapturePx <= 0) return@LaunchedEffect
+        latestFrame?.canvasBackdropCapture(spec.frameCapturePx)?.let(reportFrame)
         val interval = spec.refreshFrameEveryMs ?: return@LaunchedEffect
-        while (isActive) {
+        while (true) {
             delay(interval)
-            frame?.let(reportFrame)
+            latestFrame?.canvasBackdropCapture(spec.frameCapturePx)?.let(reportFrame)
         }
     }
 
     val alpha by animateFloatAsState(
         targetValue = if (rendered) 1f else 0f,
-        animationSpec = tween(durationMillis = 320),
+        animationSpec = tween(durationMillis = if (spec.revealInstantly && matchedStart) 0 else 320),
         label = "canvasAlpha",
     )
     LaunchedEffect(Unit) {
@@ -190,6 +219,17 @@ internal fun DesktopCanvasVideo(spec: CanvasVideoSpec, modifier: Modifier) {
             )
         }
     }
+}
+
+internal fun ImageBitmap.canvasBackdropCapture(maxEdge: Int): ImageBitmap? {
+    if (maxEdge <= 0) return null
+    val scale = minOf(1f, maxEdge.toFloat() / maxOf(width, height))
+    if (scale == 1f) return this
+    val target = ImageBitmap((width * scale).roundToInt().coerceAtLeast(1),
+        (height * scale).roundToInt().coerceAtLeast(1))
+    BitmapCanvas(target).drawImageRect(this, IntOffset.Zero, IntSize(width, height), IntOffset.Zero,
+        IntSize(target.width, target.height), Paint().apply { filterQuality = FilterQuality.Low })
+    return target
 }
 
 /** The desktop's clip, in the shared player's terms. */

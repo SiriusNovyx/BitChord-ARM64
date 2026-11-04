@@ -219,7 +219,8 @@ class DesktopAddonServerTest {
             assertEquals(DesktopModuleSource.DOLBY, song.sourceQuality)
             val stream = assertNotNull(DesktopAddonSource.stream(config, song, "LOSSLESS").getOrThrow())
             assertTrue(stream.isDolbyAtmos)
-            assertEquals("eac3-joc", stream.format.codec)
+            assertNull(stream.format.codec)
+            assertTrue(stream.format.sourceDeclaredAtmos == true)
             assertEquals(DesktopAddonStream.DASH, stream.transport)
             assertEquals(180, stream.durationSec)
         } finally {
