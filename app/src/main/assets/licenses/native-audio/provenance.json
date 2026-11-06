@@ -1,0 +1,345 @@
+{
+  "schema": 1,
+  "scope": "Native Android/TV notice assets; not a complete dependency inventory or legal-compliance certification.",
+  "upstream_integration_ref": "b690dc146009d4815825fa4a20815ef2e4ee8898",
+  "copied_originals": [
+    {
+      "asset": "COPYING-GPL-3.0.txt",
+      "component": "BitChord / native LoopMix",
+      "source_path": "LICENSE",
+      "origin": "https://github.com/kushagrasinghx/BitChord/blob/b690dc146009d4815825fa4a20815ef2e4ee8898/LICENSE",
+      "bytes": 35149,
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+      "git_blob_sha1": "f288702d2fa16d3cdf0035b15a9fcbc552cd88e7"
+    },
+    {
+      "asset": "COPYING-AGPL-3.0.txt",
+      "component": "Shared AutoMix / Orchard-derived policy",
+      "source_path": "web/app/src/playback/automix/LICENSE",
+      "origin": "https://github.com/kushagrasinghx/BitChord/blob/b690dc146009d4815825fa4a20815ef2e4ee8898/web/app/src/playback/automix/LICENSE",
+      "bytes": 34523,
+      "sha256": "8486a10c4393cee1c25392769ddd3b2d6c242d6ec7928e1414efff7dfb2f07ef",
+      "git_blob_sha1": "0ad25db4bd1d86c452db3f9602ccdbe172438f52"
+    },
+    {
+      "asset": "UPSTREAM-AutoMix-NOTICE.md",
+      "component": "Original Web AutoMix attribution; not a statement of native source availability",
+      "source_path": "web/app/src/playback/automix/NOTICE.md",
+      "origin": "https://github.com/kushagrasinghx/BitChord/blob/b690dc146009d4815825fa4a20815ef2e4ee8898/web/app/src/playback/automix/NOTICE.md",
+      "bytes": 5174,
+      "sha256": "051024e0de48238ca04dd6459fc0beeb5b4e7795f3aa3e31c70a1bbbe286a0b4",
+      "git_blob_sha1": "a4f22c6df69faa39354d62401e0b24249290aca3"
+    },
+    {
+      "asset": "Signalsmith-Stretch-MIT.txt",
+      "component": "Signalsmith Stretch",
+      "source_path": "native/third_party/signalsmith-stretch/LICENSE.txt",
+      "origin": {
+        "repository": "https://github.com/Signalsmith-Audio/signalsmith-stretch",
+        "version": "1.3.2",
+        "revision_as_recorded_in_repository": "88061fd4",
+        "upstream_inventory": "https://github.com/kushagrasinghx/BitChord/blob/b690dc146009d4815825fa4a20815ef2e4ee8898/native/third_party/README.md"
+      },
+      "bytes": 1113,
+      "sha256": "16bf62d475af149d96a24853e77c9e0d939259a9d55b23b41da7f9939db85085",
+      "git_blob_sha1": "f6a6fc5c76fb582a6abd3d2ea2b3bd62a48a9f81"
+    },
+    {
+      "asset": "Signalsmith-Linear-MIT.txt",
+      "component": "Signalsmith Linear",
+      "source_path": "native/third_party/signalsmith-linear/LICENSE.txt",
+      "origin": {
+        "repository": "https://github.com/Signalsmith-Audio/linear",
+        "version": "0.6.6",
+        "upstream_inventory": "https://github.com/kushagrasinghx/BitChord/blob/b690dc146009d4815825fa4a20815ef2e4ee8898/native/third_party/README.md"
+      },
+      "bytes": 1095,
+      "sha256": "a91f5703b0f5fa22e8c14a8bd854559a7c512bbe58656ea8bdcd4964e923ab2f",
+      "git_blob_sha1": "903a2322a80d109fe203dd82960e29fe38b52621"
+    },
+    {
+      "asset": "Oboe-Apache-2.0.txt",
+      "component": "Oboe 1.11.0",
+      "source_path": "app/.cxx/Debug/3sk4196u/arm64-v8a/_deps/oboe-src/LICENSE",
+      "origin": {
+        "url": "https://github.com/google/oboe/archive/refs/tags/1.11.0.tar.gz",
+        "archive_sha256": "0ccf2110640a2b4489f1c93a404f2978656b434d8c5dc9cb6258f9cc95c79b15",
+        "pin_file": "app/src/main/cpp/CMakeLists.txt"
+      },
+      "bytes": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "git_blob_sha1": "d645695673349e3947e8e5ae42332d0ac3164cd7"
+    },
+    {
+      "asset": "libusb-COPYING-LGPL-2.1.txt",
+      "component": "libusb 1.0.27",
+      "source_path": "app/.cxx/Debug/3sk4196u/arm64-v8a/_deps/libusb-src/COPYING",
+      "origin": {
+        "url": "https://github.com/libusb/libusb/releases/download/v1.0.27/libusb-1.0.27.tar.bz2",
+        "archive_sha256": "ffaa41d741a8a3bee244ac8e54a72ea05bf2879663c098c82fc5757853441575",
+        "pin_file": "app/src/main/cpp/CMakeLists.txt"
+      },
+      "bytes": 26436,
+      "sha256": "5df07007198989c622f5d41de8d703e7bef3d0e79d62e24332ee739a452af62a",
+      "git_blob_sha1": "5ab7695ab8cabe0c5c8a814bb0ab1e8066578fbb"
+    },
+    {
+      "asset": "Mornye-COPYING-LGPL-3.0.txt",
+      "component": "Mornye-derived output",
+      "source_path": "audit-fetched/Mornye-LICENSE.original",
+      "origin": {
+        "url": "https://github.com/mornyeapp/Mornye/blob/c90ec6478ad3e808ef22ba9464f8ad05054dde7b/LICENSE",
+        "license_revision": "c90ec6478ad3e808ef22ba9464f8ad05054dde7b",
+        "license_git_blob": "65c5ca88a67c30becee01c5a8816d964b03862f9",
+        "adapted_code_revision": "Unresolved: license-text retrieval pin is not the historic code provenance."
+      },
+      "bytes": 7651,
+      "sha256": "da7eabb7bafdf7d3ae5e9f223aa5bdc1eece45ac569dc21b3b037520b4464768",
+      "git_blob_sha1": "65c5ca88a67c30becee01c5a8816d964b03862f9"
+    },
+    {
+      "asset": "DST-COPYING-LGPL-2.1.txt",
+      "component": "DST decoder",
+      "source_path": "app/src/main/cpp/dsd/dst/COPYING.LGPL-2.1",
+      "origin": "https://github.com/kushagrasinghx/BitChord/blob/b690dc146009d4815825fa4a20815ef2e4ee8898/app/src/main/cpp/dsd/dst/COPYING.LGPL-2.1",
+      "bytes": 26526,
+      "sha256": "20c17d8b8c48a600800dfd14f95d5cb9ff47066a9641ddeab48dc54aec96e331",
+      "git_blob_sha1": "8000a6faacf471c537530805ab29523c7732e11a"
+    },
+    {
+      "asset": "DST-NOTICE.md",
+      "component": "DST decoder",
+      "source_path": "app/src/main/cpp/dsd/dst/NOTICE.md",
+      "origin": "https://github.com/kushagrasinghx/BitChord/blob/b690dc146009d4815825fa4a20815ef2e4ee8898/app/src/main/cpp/dsd/dst/NOTICE.md",
+      "bytes": 1178,
+      "sha256": "eeded6d9ef2cb8ef081b2fedd15410eaf57205251cdaa010e3f9466c00a4e9ca",
+      "git_blob_sha1": "7e2d71b48b48a754e564c4dd3c5854fb15707001"
+    }
+  ],
+  "source_attribution_inputs": [
+    {
+      "source": "native/loopmix/loop_mix_renderer.cpp",
+      "sha256": "feb5875f489566fbe360af70b93094b98a1322f7e6382a2b934816ca7eb6eca7",
+      "header_sha256": "fb331ffdf43ef10d8462784d80c41f7a6f1d0a402d71999455c3ba5d30ec1067"
+    },
+    {
+      "source": "native/loopmix/loop_mix_renderer.h",
+      "sha256": "d18d59ce58b8a7c9a42033502fc8f033dd41a81e099e3ac272243780c75ff92a",
+      "header_sha256": "7ffc31f1f139cccc55cc5120a764ac6d87aa7f85e239056b495548fa1e98efec"
+    },
+    {
+      "source": "app/src/main/cpp/jni/loopmix_jni.cpp",
+      "sha256": "565ca5c054df4a526ddeeaf3fcaded5ac945d9e64d7e8c30d78f0fe362fa2565",
+      "header_sha256": "cad2453b16b7e5e5c8778190d2d408815a16efa5f952d6ce93bc09ca0928c8dc"
+    },
+    {
+      "source": "shared/src/commonMain/kotlin/com/music/bitchord/playback/smart/LoopMix.kt",
+      "sha256": "b88f05ed1cd6a86100707ff84989eadda0a7c69c77d9a1a3ed298490e81ca505",
+      "header_sha256": "45d8e2623aaec02c3b4ce2835b04fc02ea6dcd4f71e1da3de2f8a94166276bfe"
+    },
+    {
+      "source": "shared/src/commonMain/kotlin/com/music/bitchord/playback/smart/TransitionPlanner.kt",
+      "sha256": "3490354b1b14881700658f954870b187efc392cd0e1cfe4a315323780d44a3c6",
+      "header_sha256": "a0a8c439858d8ac48fa9532eccc7bb5101d7942dd00541fb24c310eae4f2fe13"
+    },
+    {
+      "source": "shared/src/commonMain/kotlin/com/music/bitchord/playback/smart/TrackAnalysis.kt",
+      "sha256": "b4b61d8975904a5ff65ef96abd179ca260d1c108800ca088972c4a3630351ed8",
+      "header_sha256": "595eade931079863c7df1de5439ac0bd964ede6fa922eda99982ac026eafe55a"
+    },
+    {
+      "source": "shared/src/commonMain/kotlin/com/music/bitchord/playback/smart/TransitionPolicy.kt",
+      "sha256": "5369860876566d7ccc92f041a299dd47a5437dc5c80b53a2a7420b6b841cd089",
+      "header_sha256": "595eade931079863c7df1de5439ac0bd964ede6fa922eda99982ac026eafe55a"
+    },
+    {
+      "source": "shared/src/jvmSharedMain/kotlin/com/music/bitchord/playback/smart/BeatTracker.kt",
+      "sha256": "d11925f37a203b31ae6e4b1fbd2142d0b38fe570067508637e8a69568506061d",
+      "header_sha256": "2c12e45d5eb643279d7bdf85a6dfd83f3f9349dd7f14960e9572c7298d741e54"
+    },
+    {
+      "source": "shared/src/jvmSharedMain/kotlin/com/music/bitchord/playback/smart/VocalTracker.kt",
+      "sha256": "a9880bb69335d8d394f8da2aa94c6dd3138bb7b6f670a5b89cb266b8f3fbab6b",
+      "header_sha256": "595eade931079863c7df1de5439ac0bd964ede6fa922eda99982ac026eafe55a"
+    },
+    {
+      "source": "app/src/main/cpp/bitperfect/exclusive_output.cpp",
+      "sha256": "c0af3d746ddd6b5865eae3ec590822a7808d5678abe6db2c82c3c85c702b7742",
+      "header_sha256": "d4e756e8a3d969342533c2de3fb085b5e03162e81aba765c7db6f8c76ce7bc7f"
+    },
+    {
+      "source": "app/src/main/cpp/bitperfect/usb_transport.cpp",
+      "sha256": "f27d61f62753ea808bbd3a553ec6873e3b318db54c3ab7497e42fd5b9260423a",
+      "header_sha256": "5c16f92d149922eeb7cd1ee847f61dcd10b6b1f04c788b7eb2ce938d96a47b6f"
+    },
+    {
+      "source": "app/src/main/cpp/bitperfect/usb_stream.h",
+      "sha256": "22d487499a44096cd7fbb759dc44fafa303227c1f01cedcfdbe1d62f895847ff",
+      "header_sha256": "10483036bfdd7cee5705359a162f45204717419046d05a86275084b4e2ba3d84"
+    },
+    {
+      "source": "app/src/main/cpp/dsd/dst/decoder.c",
+      "sha256": "fdf2e4f03ce32fe504bcfc86830e751baab097350cde63469db278c7cbcf057b",
+      "header_sha256": "be81d0d56f3861d95bd1b0e5de2455ef5be73a1d76b342388c81171333d7e304"
+    },
+    {
+      "source": "app/src/main/java/com/music/bitchord/playback/audio/bitperfect/BitPerfectPcm.kt",
+      "sha256": "9a1a749b27834327c0f3d30bce1c6e9b7f16d1ea4ea95e5e5c00f513ee81ffb4",
+      "header_sha256": "0f8fa18785c87deeda1ba19fb4014ca65bb6c077d9576b481fa0907702056c17"
+    },
+    {
+      "source": "app/src/main/java/com/music/bitchord/playback/audio/bitperfect/ExclusiveTransport.kt",
+      "sha256": "f8f6b39caab45d0e156a2428b4f860aedba60b2b83d1ca0ba75c6eb456a9df22",
+      "header_sha256": "451b3e8ad4690cefb2d4425fcda9bea209b411bec60366356f64e9d12a18ae08"
+    },
+    {
+      "source": "app/src/main/java/com/music/bitchord/playback/audio/bitperfect/MixerTransport.kt",
+      "sha256": "447a8c166ae1360e22d42b28f836462d0c2b72e9fbf2253adda84e6177c3b4b4",
+      "header_sha256": "37d6ab65fa737736f64b739b72b2da61380543fd7a2edd726c46fb9b83eeb1fb"
+    },
+    {
+      "source": "app/src/main/java/com/music/bitchord/playback/audio/bitperfect/usb/UsbDescriptors.kt",
+      "sha256": "944ec79b96f6810d4aeeb4c3969db99efcb0ac56546fc7fb601d2d6c795299bd",
+      "header_sha256": "39ff6e4bc79f884bca5601bedf027e63f431dd559f280379f7180a67e2b4e4e7"
+    },
+    {
+      "source": "app/src/main/java/com/music/bitchord/playback/audio/bitperfect/usb/UsbDirectDevices.kt",
+      "sha256": "4e09669f7b783f084c997620318008c6dabe95a19f1d9d275f9a811e8eddd540",
+      "header_sha256": "fa784974b1082feda9e6f93374841a766938e4bbc44ac8751dc4c598ec724016"
+    },
+    {
+      "source": "app/src/main/java/com/music/bitchord/playback/audio/bitperfect/usb/UsbDirectTransport.kt",
+      "sha256": "54b775d16127d27d54033af052b0ef7b82a9108bff68a6cf90b69317d6d70b46",
+      "header_sha256": "116bdcd3ffcb176377a3b37618f2a9f3f3858c78ce23b8c65836772e26111a93"
+    },
+    {
+      "source": "app/src/main/java/com/music/bitchord/playback/audio/bitperfect/usb/UsbVolume.kt",
+      "sha256": "9ef8b72e09d7eaac31b814d686062cf004df70c877190008be509df89265c8da",
+      "header_sha256": "ba2ec6d138868925b90065020006ce95f4d3e5280a8e7e7021ee22daa294222c"
+    },
+    {
+      "source": "app/.cxx/Debug/3sk4196u/arm64-v8a/_deps/oboe-src/include/oboe/Oboe.h",
+      "sha256": "6431d156fdc3f490c4bc14f2e502c8cf144fd87c8a12779a4642958e07338d58",
+      "header_sha256": "bd681efb8799978450f2abfdb13bf66aa8e2050c974625bf6ab8e184d4500b65"
+    },
+    {
+      "source": "app/.cxx/Debug/3sk4196u/arm64-v8a/_deps/libusb-src/libusb/core.c",
+      "sha256": "b37ffd84593b06137201e60d6155d8cc4e3f2ab2b99ab9c4cecbdca848f36b9c",
+      "header_sha256": "37663889170f0d8e7e8991e9d2aaf810d376049a3f5c04dc896d1e48c44e1c51"
+    },
+    {
+      "source": "app/.cxx/Debug/3sk4196u/arm64-v8a/_deps/libusb-src/libusb/descriptor.c",
+      "sha256": "31ac71b59c48fc6403b74f881d0e90bdbf496fe6a53645a950e153609f0532bb",
+      "header_sha256": "d8154597989dee8f87d80a8b9e51363bb4d6b42f3457f622b6a42eba2c43917a"
+    },
+    {
+      "source": "app/.cxx/Debug/3sk4196u/arm64-v8a/_deps/libusb-src/libusb/hotplug.c",
+      "sha256": "5b51573b1fdf8d82c71dac0db9947a531082e520304eb71a98d34aa68521b406",
+      "header_sha256": "54822bc624245ffacf4c13d7d721a7925b3290ea0327cbd17be3c4d81a7693d1"
+    },
+    {
+      "source": "app/.cxx/Debug/3sk4196u/arm64-v8a/_deps/libusb-src/libusb/io.c",
+      "sha256": "2eaa3438b7542b72d036ed6dcaaead018060b660bf2786f2e8da4b14a045c7c2",
+      "header_sha256": "c10c21cf22b6713cd38ead2d2ccf893dc5e9827978d8b02fd72c4cb97cff9184"
+    },
+    {
+      "source": "app/.cxx/Debug/3sk4196u/arm64-v8a/_deps/libusb-src/libusb/sync.c",
+      "sha256": "1aad8b0255e24496e99c050a069c31685fae72ee5c73b7a29ab722193eff0e24",
+      "header_sha256": "a720f2e4e67f5f4bee31231d1d7f5c2607321063cfde3ace714241075b933f84"
+    },
+    {
+      "source": "app/.cxx/Debug/3sk4196u/arm64-v8a/_deps/libusb-src/libusb/strerror.c",
+      "sha256": "17ee9b6cf5b07b39adce9806339799a5085fde8c5f17ed86af324b856ca7d1ec",
+      "header_sha256": "47f5733f9bf4b86513d36c9a54282c76800888ce3062f2b9148a52feef360073"
+    },
+    {
+      "source": "app/.cxx/Debug/3sk4196u/arm64-v8a/_deps/libusb-src/libusb/os/linux_usbfs.c",
+      "sha256": "42303133521e39ff46e3ddb447141d426f0cf2a68c720322031770a62588cf7a",
+      "header_sha256": "b435bc7decc60a59fdd26165886749f760bd83260afbe467374d2b63d3b36614"
+    },
+    {
+      "source": "app/.cxx/Debug/3sk4196u/arm64-v8a/_deps/libusb-src/libusb/os/events_posix.c",
+      "sha256": "d34b8fff18e0db679d995d271de4c9d98aeeb35663f806ae1561c446c05165a7",
+      "header_sha256": "38005bbd9a93f02c3673fc39322153f259a04805faf966b6ce3a010c22fbb52d"
+    },
+    {
+      "source": "app/.cxx/Debug/3sk4196u/arm64-v8a/_deps/libusb-src/libusb/os/threads_posix.c",
+      "sha256": "bff8c3fbd2e0cecc8c5803a0a36a4ebb5b04019d2a37d7a48ea650bc0fd1b26d",
+      "header_sha256": "1e875820264818818d6af61e2688cb31e99597ea8f4828fac5c42741800a5854"
+    },
+    {
+      "source": "app/.cxx/Debug/3sk4196u/arm64-v8a/_deps/libusb-src/libusb/os/linux_netlink.c",
+      "sha256": "6ad9b928501ad36dd9fffdbe713a9cdd9d4533b8324190bd060001528d8374f0",
+      "header_sha256": "345ee71c2a7d351cd18f352c5eb13f68514483a0adf5ea5e601fd25f24c01329"
+    }
+  ],
+  "assets": [
+    {
+      "path": "COPYING-AGPL-3.0.txt",
+      "bytes": 34523,
+      "sha256": "8486a10c4393cee1c25392769ddd3b2d6c242d6ec7928e1414efff7dfb2f07ef"
+    },
+    {
+      "path": "COPYING-GPL-3.0.txt",
+      "bytes": 35149,
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+    },
+    {
+      "path": "DST-COPYING-LGPL-2.1.txt",
+      "bytes": 26526,
+      "sha256": "20c17d8b8c48a600800dfd14f95d5cb9ff47066a9641ddeab48dc54aec96e331"
+    },
+    {
+      "path": "DST-NOTICE.md",
+      "bytes": 1178,
+      "sha256": "eeded6d9ef2cb8ef081b2fedd15410eaf57205251cdaa010e3f9466c00a4e9ca"
+    },
+    {
+      "path": "libusb-COPYING-LGPL-2.1.txt",
+      "bytes": 26436,
+      "sha256": "5df07007198989c622f5d41de8d703e7bef3d0e79d62e24332ee739a452af62a"
+    },
+    {
+      "path": "Mornye-COPYING-LGPL-3.0.txt",
+      "bytes": 7651,
+      "sha256": "da7eabb7bafdf7d3ae5e9f223aa5bdc1eece45ac569dc21b3b037520b4464768"
+    },
+    {
+      "path": "NOTICE.txt",
+      "bytes": 2223,
+      "sha256": "fb3c068fd10f622af6a20a7bf70fe4170aef82796a0085fbd82a31a28fdc2541"
+    },
+    {
+      "path": "Oboe-Apache-2.0.txt",
+      "bytes": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    {
+      "path": "Signalsmith-Linear-MIT.txt",
+      "bytes": 1095,
+      "sha256": "a91f5703b0f5fa22e8c14a8bd854559a7c512bbe58656ea8bdcd4964e923ab2f"
+    },
+    {
+      "path": "Signalsmith-Stretch-MIT.txt",
+      "bytes": 1113,
+      "sha256": "16bf62d475af149d96a24853e77c9e0d939259a9d55b23b41da7f9939db85085"
+    },
+    {
+      "path": "SOURCE-ATTRIBUTION.txt",
+      "bytes": 24154,
+      "sha256": "a9a2155ea6db7758de61992cb0069b04dfe9c79797dabc90fcaabbbcb91aa0c3"
+    },
+    {
+      "path": "UPSTREAM-AutoMix-NOTICE.md",
+      "bytes": 5174,
+      "sha256": "051024e0de48238ca04dd6459fc0beeb5b4e7795f3aa3e31c70a1bbbe286a0b4"
+    }
+  ],
+  "unresolved_release_gates": [
+    "Exact Mornye adapted-code revision",
+    "Exact model checkpoint/export provenance and notices",
+    "Unrelated SF Pro embedding permission",
+    "Exact integration corresponding source/rebuild/relinking/installation materials",
+    "Actual rebuilt Android/TV assets and ABI verification"
+  ]
+}

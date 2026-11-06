@@ -5,12 +5,14 @@ import com.music.bitchord.data.model.Song
 import com.music.bitchord.data.settings.AppSettings
 import com.music.bitchord.data.sources.addon.AddonClient
 import com.music.bitchord.data.sources.addon.AddonException
+import com.music.bitchord.data.sources.addon.AddonHttpException
 import com.music.bitchord.data.sources.addon.AddonManifest
 import com.music.bitchord.data.sources.addon.AddonNotFound
 import com.music.bitchord.data.sources.addon.AddonStream
 import com.music.bitchord.data.sources.addon.AddonTrack
 import com.music.bitchord.playback.StreamContainer
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import java.util.Collections
 import java.util.Locale
@@ -85,9 +87,21 @@ class AddonSource(
      * which the request was about to read for its settings anyway.
      */
     private suspend fun admitted(what: String): Boolean {
+        if (!SourceRegistry.canAttempt(config.id)) return false
         if (shutOut(what)) return false
-        client.manifest().getOrNull()?.let(::recordPolicy)
+        val manifest = client.manifest()
+        if (manifest.exceptionOrNull()?.let(::recordProviderFailure) == true) return false
+        manifest.getOrNull()?.let(::recordPolicy)
         return !shutOut(what)
+    }
+
+    private fun recordProviderFailure(failure: Throwable): Boolean {
+        if (failure is CancellationException) throw failure
+        if (failure is Exception && failure.isProviderWideSourceFailure()) {
+            SourceRegistry.recordFailure(config.id, failure)
+            return true
+        }
+        return false
     }
 
     private fun recordPolicy(manifest: AddonManifest) =
@@ -123,6 +137,15 @@ class AddonSource(
                 )
             },
             onFailure = { failure ->
+                if (failure is CancellationException) throw failure
+                if (failure.isProviderWideSourceFailure()) {
+                    if (failure is Exception) SourceRegistry.recordFailure(config.id, failure)
+                    return@fold if (failure is AddonHttpException && failure.status in setOf(401, 403)) {
+                        SourceHealth.Rejected("Authorization required")
+                    } else {
+                        SourceHealth.Unreachable("Temporarily unavailable")
+                    }
+                }
                 // No readable manifest is not the same as no addon. The
                 // endpoints are what this app uses; the manifest only describes
                 // them, and an addon that never published one is healthy the
@@ -193,6 +216,7 @@ class AddonSource(
             if (!admitted("a search")) return@withContext emptyList()
             val tier = request?.tier ?: AddonClient.TIER_LOSSLESS
             val tracks = client.search(query, tier).getOrElse { failure ->
+                recordProviderFailure(failure)
                 TrackLog.w(TAG, "${config.displayName}: search failed — ${failure.message}")
                 return@withContext emptyList()
             }
@@ -254,6 +278,7 @@ class AddonSource(
                 // fault worth a line, and both end the same way: whatever the
                 // search row had, else null so [SourceResolver] moves on.
                 val failure = result.exceptionOrNull()
+                if (failure?.let(::recordProviderFailure) == true) return@withContext null
                 if (failure !is AddonNotFound) {
                     TrackLog.w(TAG, "${config.displayName}: stream failed for $trackId — ${failure?.message}")
                 }
@@ -335,13 +360,8 @@ class AddonSource(
         }
 
         val format = formatOf(answer, url, tier)
-        val playsAtmos = DeviceCodecs.playsDolbyAtmos
-        if (ModuleSource.unplayable(format, atmosAllowed = playsAtmos && AppSettings.dolbyAtmos.value)) {
-            val why = if (playsAtmos) {
-                "which is switched off in Settings"
-            } else {
-                "which this device has no decoder for"
-            }
+        if (ModuleSource.unplayable(format, atmosAllowed = DeviceCodecs.atmosWanted, eac3DecoderAvailable = DeviceCodecs.playsDolbyAtmos)) {
+            val why = DeviceCodecs.atmosRefusal()
             TrackLog.w(
                 TAG,
                 "${config.displayName}: answered a $tier request with ${format.summary}, $why — passing",
@@ -378,31 +398,33 @@ class AddonSource(
      * answering "no" when it does not know is not.
      */
     private fun formatOf(answer: AddonStream, url: String, tier: String): StreamFormat {
-        val codec = answer.statedCodec?.takeIf { it in AUDIO_CODECS }
+        val codec = answer.statedCodec?.replace('_', '-')?.takeIf { it in AUDIO_CODECS }
             ?: answer.statedContainer?.takeIf { it in SELF_DESCRIBING_CONTAINERS }
             ?: answer.mimeType?.substringAfterLast('/')?.substringBefore(';')?.trim()
                 ?.lowercase(Locale.ROOT)?.takeIf { it in AUDIO_CODECS }
-            ?: if (answer.isDolbyAtmos) {
-                "eac3-joc"
-            } else if (ModuleSource.qualityTier(answer.qualityText) == ModuleSource.LOSSLESS) {
+            ?: if (ModuleSource.qualityTier(answer.qualityText) == ModuleSource.LOSSLESS) {
                 "flac"
             } else {
                 url.substringBefore('?').substringAfterLast('.')
                     .lowercase(Locale.ROOT).takeIf { it in AUDIO_CODECS }
             }
 
+        // The tier's own published meaning is the last resort and only for
+        // the lossy rungs, where "HIGH" is a statement of 320 and the
+        // number is what says "this is not what you asked for". Flagged, so
+        // stats for nerds measures the stream instead of repeating the tier.
+        val tierKbps = when (tier) {
+            AddonClient.TIER_HIGH -> 320
+            AddonClient.TIER_LOW -> 128
+            else -> null
+        }
         return StreamFormat(
             codec = codec,
-            // The tier's own published meaning is the last resort and only for
-            // the lossy rungs, where "HIGH" is a statement of 320 and the
-            // number is what says "this is not what you asked for".
-            kbps = answer.kbps ?: when (tier) {
-                AddonClient.TIER_HIGH -> 320
-                AddonClient.TIER_LOW -> 128
-                else -> null
-            },
+            kbps = answer.kbps ?: tierKbps,
             sampleRateHz = answer.sampleRateHz,
             bitDepth = answer.bits,
+            kbpsInferred = answer.kbps == null && tierKbps != null,
+            sourceDeclaredAtmos = answer.isDolbyAtmos,
         )
     }
 
@@ -465,7 +487,7 @@ class AddonSource(
          */
         val AUDIO_CODECS = setOf(
             "flac", "alac", "wav", "aiff", "mp3", "aac", "he-aac", "m4a", "mp4",
-            "ogg", "opus", "vorbis", "webm", "eac3-joc", "ec3-joc",
+            "ogg", "opus", "vorbis", "webm", "eac3", "ec-3", "ac3", "eac3-joc", "ec3-joc",
         )
     }
 }

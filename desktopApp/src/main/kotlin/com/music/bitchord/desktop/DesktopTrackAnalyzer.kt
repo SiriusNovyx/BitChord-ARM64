@@ -10,6 +10,12 @@ import com.music.bitchord.playback.smart.BeatTracker
 import com.music.bitchord.playback.smart.MelSpectrogram
 import com.music.bitchord.playback.smart.TrackAnalysis
 import com.music.bitchord.playback.smart.TrackFeatures
+import com.music.bitchord.playback.smart.CurveWindow
+import com.music.bitchord.playback.smart.VocalTracker
+import com.music.bitchord.playback.smart.VocalSpectrogram
+import com.music.bitchord.playback.smart.heuristicVocalOnModelScale
+import com.music.bitchord.ui.player.DesktopVisualMetrics
+import com.music.bitchord.ui.player.PerformanceStage
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -43,10 +49,15 @@ internal class DesktopTrackAnalyzer(
 ) {
 
     /** Analyses kept between runs, so a track measured yesterday is not measured again today. */
-    private val store = AnalysisStore { DesktopAnalysisRuntime.analysisHome() }
+    private val store = AnalysisStore { analysisCacheHome() }
 
     private val results = ConcurrentHashMap<String, TrackAnalysis>()
-    private val running = ConcurrentHashMap.newKeySet<String>()
+    private val measuredSources = ConcurrentHashMap<String, DesktopLoopMixRecording>()
+
+    /** Only live measurements have recording provenance; a legacy cache cannot authorize looping. */
+    fun measuredSourceFor(trackId: String): DesktopStream? = measuredSources[trackId]?.stream
+    fun measuredRecordingFor(trackId: String): DesktopLoopMixRecording? = measuredSources[trackId]
+    private val preparation = DesktopPreparationQueue<String>(worker)
     private val active = ConcurrentHashMap.newKeySet<String>()
     private val sourceResolved = ConcurrentHashMap.newKeySet<String>()
     private val noSource = ConcurrentHashMap.newKeySet<String>()
@@ -59,13 +70,32 @@ internal class DesktopTrackAnalyzer(
 
     /** Said once, not once a tick. */
     private val warnedNoAnalyser = java.util.concurrent.atomic.AtomicBoolean(false)
+    private var selectedGeneration: Long? = null
 
-    private val beats by lazy {
+    /** Selection starts the preparation horizon; obsolete passes cannot occupy it. */
+    @Synchronized fun selectPair(currentId: String?, nextId: String?, generation: Long? = null) {
+        if (generation != null && generation != selectedGeneration) {
+            preparation.retain(emptyList())
+            selectedGeneration = generation
+        }
+        preparation.retain(listOfNotNull(currentId, nextId))
+    }
+
+    private val beatTracker = lazy {
         BeatTracker(
-            modelPath = { DesktopAnalysisRuntime.modelPath(BeatTracker.MODEL_ASSET) },
+            // Desktop retains its measured weights independently of Android's default.
+            modelPath = { DesktopAnalysisRuntime.modelPath(BeatTracker.RETIRED_MODEL_ASSET) },
             inferenceThreads = { performance().inferenceThreads },
         )
     }
+    private val beats by beatTracker
+    private val vocalTracker = lazy {
+        VocalTracker(
+            modelPath = { DesktopAnalysisRuntime.modelPath(VocalTracker.MODEL_ASSET) },
+            inferenceThreads = { performance().inferenceThreads },
+        )
+    }
+    private val vocals by vocalTracker
 
     /** What is known now, never a computation — the planner asks this every tick. */
     fun analysisFor(trackId: String): TrackAnalysis =
@@ -118,9 +148,24 @@ internal class DesktopTrackAnalyzer(
      * playing yet, and one recording's measurements from being stored under another's id.
      */
     fun request(song: Song, stream: DesktopStream?, durationSeconds: Double) {
+        request(song, stream, durationSeconds, renewRecordingEvidence = false)
+    }
+
+    /** Cached grids remain usable while LoopMix establishes this session's exact recording. */
+    fun requestLoopEvidence(song: Song, stream: DesktopStream?, durationSeconds: Double) {
+        request(song, stream, durationSeconds, renewRecordingEvidence = true)
+    }
+
+    fun requestLoopEvidenceForRecording(song: Song, stream: DesktopStream?, durationSeconds: Double,
+                                       opened: DesktopLoopMixRecording?) {
+        request(song, stream, durationSeconds, renewRecordingEvidence = true, opened = opened)
+    }
+
+    private fun request(song: Song, stream: DesktopStream?, durationSeconds: Double,
+                        renewRecordingEvidence: Boolean, opened: DesktopLoopMixRecording? = null) {
         val trackId = song.videoId
         if (trackId.isBlank()) return
-        if (durationSeconds <= 0) return
+        if (!durationSeconds.isFinite() || durationSeconds <= 0) return
         if (stopped()) return
         val eligibility = statusFor(song, stream).eligibility
         if (eligibility == TrackAnalysisEligibility.ABSENT || eligibility == TrackAnalysisEligibility.VIDEO ||
@@ -132,48 +177,57 @@ internal class DesktopTrackAnalyzer(
             }
             return
         }
-        if (results.containsKey(trackId) || restored(trackId) != null) return
+        val measured = measuredSources[trackId]
+        val sameLocalFile = opened?.stream?.isLocalFile != true || opened.matches(measured)
+        if ((results.containsKey(trackId) || restored(trackId) != null) &&
+            (!renewRecordingEvidence || measured != null && sameLocalFile)) return
         // Asked every tick; a track that just failed is not resolved and decoded again each time.
         failedAt[trackId]?.let { if (currentTimeMs() - it < RETRY_AFTER_MS) return }
-        if (!running.add(trackId)) return
+        val local = stream?.takeIf { it.isLocalFile }
         noSource.remove(trackId)
         failed.remove(trackId)
-        val local = stream?.takeIf { it.isLocalFile }
-        DesktopTrackLog.log(
-            "automix: analysing '${song.title}' (${"%.0f".format(durationSeconds)}s)" +
-                if (local != null) " from the file" else " from YouTube Opus",
-        )
-
-        worker.execute {
+        preparation.submit(trackId) { pass ->
+            fun cancelled() = pass.cancelled || stopped()
+            val measuredFrom = DesktopVisualMetrics.collector.begin()
             try {
                 active.add(trackId)
-                if (stopped()) {
-                    running.remove(trackId)
-                    return@execute
-                }
+                if (cancelled()) return@submit
+                DesktopTrackLog.log(
+                    "automix: analysing '${song.title}' (${"%.0f".format(durationSeconds)}s)" +
+                        if (local != null) " from the file" else " from YouTube Opus",
+                )
                 // Android's rule: the lowest rung yields to playback rather than competing for a
                 // core, and the thread count stays the speed knob for the other two.
                 Thread.currentThread().priority =
                     if (performance().yieldsToPlayback) Thread.MIN_PRIORITY else Thread.NORM_PRIORITY
+                var measuredSource: DesktopLoopMixRecording? = null
                 val analysis = runCatching {
-                    val source = local ?: youTubeOpus(song) ?: return@runCatching null
-                    analyse(trackId, source, durationSeconds)
+                    val source = local ?: youTubeOpus(song, pass) ?: return@runCatching null
+                    if (cancelled()) return@runCatching null
+                    val recording = DesktopLoopMixRecording.capture(source)
+                    val result = analyse(trackId, source, durationSeconds, pass)
+                    if (recording != null && !recording.isCurrent()) return@runCatching null
+                    result.also { if (it != null) measuredSource = recording }
                 }
-                    .onFailure { DesktopTrackLog.log("analysis of '${song.title}' failed: ${it.message}") }
+                    .onFailure { if (!cancelled()) DesktopTrackLog.log("analysis of '${song.title}' failed: ${it.message}") }
                     .getOrNull()
-                if (analysis == null && stopped()) {
-                    // Called off, not failed: it is free to be measured once the party ends.
-                    running.remove(trackId)
-                    return@execute
-                }
+                // Cancellation is neither evidence nor a failure/cooldown for a later same-ID pass.
+                if (cancelled()) return@submit
                 if (analysis == null) {
-                    failed += trackId
-                    failedAt[trackId] = currentTimeMs()
+                    pass.publish {
+                        failed += trackId
+                        failedAt[trackId] = currentTimeMs()
+                    }
                 }
                 if (analysis != null) {
-                    failedAt.remove(trackId)
+                    // Ready must not become observable before its restart cache write has settled.
+                    // Keep disk IO outside Pass.publish's cancellation lock so controls cannot wait on it.
                     store.save(trackId, analysis)
-                    results[trackId] = analysis
+                    if (!pass.publish {
+                        failedAt.remove(trackId)
+                        measuredSource?.let { measuredSources[trackId] = it }
+                        results[trackId] = analysis
+                    }) return@submit
                     DesktopTrackLog.log(
                         "analysed '${song.title}': ${"%.1f".format(analysis.bpm)} bpm" +
                             ", ${analysis.downbeats.size} downbeats" +
@@ -181,9 +235,11 @@ internal class DesktopTrackAnalyzer(
                     )
                     onAnalysed(trackId)
                 }
+            } catch (error: Exception) {
+                if (!cancelled()) DesktopTrackLog.log("analysis of '${song.title}' failed: ${error.message}")
             } finally {
                 active.remove(trackId)
-                running.remove(trackId)
+                DesktopVisualMetrics.collector.finish(PerformanceStage.TRACK_ANALYSIS, measuredFrom)
             }
         }
     }
@@ -192,9 +248,10 @@ internal class DesktopTrackAnalyzer(
      * [song]'s YouTube Opus stream, bypassing the source race playback runs — or null when there
      * is no YouTube copy of it to measure.
      */
-    private fun youTubeOpus(song: Song): DesktopStream? = runBlocking {
+    private fun youTubeOpus(song: Song, pass: DesktopPreparationQueue.Pass): DesktopStream? = runBlocking {
         sourceOverride?.let { resolve ->
             val source = resolve(song)
+            if (pass.cancelled) return@runBlocking null
             if (source == null) noSource.add(song.videoId) else sourceResolved.add(song.videoId)
             return@runBlocking source
         }
@@ -216,27 +273,31 @@ internal class DesktopTrackAnalyzer(
         trackId: String,
         stream: DesktopStream,
         durationSeconds: Double,
+        pass: DesktopPreparationQueue.Pass,
     ): TrackAnalysis? {
-        val features = decode(stream, TrackFeatures.sampleRate)
-            ?.let { TrackFeatures.analyze(it, durationSeconds) }
-            ?: return null
+        // The structural mono pass stays separate from bounded stereo inference windows.
+        val (features, effectiveDuration) = structuralFeatures(stream, durationSeconds, pass) ?: return null
 
-        if (stopped()) return null
-        // The model runs at its own rate, so it gets its own decode rather than a resample of the
-        // analyser's.
-        val grid = decode(stream, MelSpectrogram.sampleRate)?.let { beats.track(it) }
+        if (stopped() || pass.cancelled) return null
+        val span = (VocalTracker.FIXED_FRAMES - 2) * VocalSpectrogram.hop / VocalSpectrogram.sampleRate
+        val regions = modelRegions(stream, effectiveDuration, span, pass)
+        if (stopped() || pass.cancelled) return null
+        val head = DesktopAnalysisWindows.side(regions, 0.0, DesktopAnalysisWindows.headEnd(effectiveDuration, span))
+        val tail = DesktopAnalysisWindows.side(regions, DesktopAnalysisWindows.tailStart(effectiveDuration, span), effectiveDuration)
+        val leading = tail ?: head
+        val vocalWindows = regions.mapNotNull { it.vocal }
 
         return TrackAnalysis(
             status = TrackAnalysis.STATUS_READY,
             trackId = trackId,
-            duration = durationSeconds,
+            duration = effectiveDuration,
             // The grid wins where it has an opinion: a trained model reads meter, which
             // autocorrelation cannot.
-            bpm = grid?.bpm ?: features.bpm,
-            beatInterval = grid?.beatInterval ?: features.beatInterval,
-            beatConfidence = grid?.beatConfidence ?: features.beatConfidence,
-            downbeats = grid?.downbeats ?: features.downbeats,
-            firstBeat = grid?.firstBeat ?: features.firstBeat,
+            bpm = leading?.bpm ?: features.bpm,
+            beatInterval = leading?.let { 60 / it.bpm } ?: features.beatInterval,
+            beatConfidence = leading?.confidence ?: features.beatConfidence,
+            downbeats = (head?.downbeats.orEmpty() + tail?.downbeats.orEmpty()).distinct().sorted().ifEmpty { features.downbeats },
+            firstBeat = head?.beats?.firstOrNull() ?: features.firstBeat,
             phraseBoundaries = features.phraseBoundaries,
             key = features.key,
             keyConfidence = features.keyConfidence,
@@ -251,36 +312,109 @@ internal class DesktopTrackAnalyzer(
             mixOutCandidates = features.mixOutCandidates,
             energyCurve = features.energyCurve,
             lowEnergyCurve = features.lowEnergyCurve,
-            vocalActivityMask = features.vocalActivityMask,
+            vocalActivityMask = DesktopAnalysisWindows.overlay(
+                features.energyCurve.map { it.time },
+                features.vocalActivityMask.map(::heuristicVocalOnModelScale),
+                vocalWindows,
+            ),
             vocalProbability = features.vocalProbability,
+            headBeats = head,
+            tailBeats = tail,
+            vocalWindows = vocalWindows,
+            levelWindows = regions.mapNotNull { it.level },
         )
     }
 
-    /** The whole track as mono float at [rate]. */
-    private fun decode(stream: DesktopStream, rate: Double): FloatArray? {
+    private fun structuralFeatures(
+        stream: DesktopStream,
+        duration: Double,
+        pass: DesktopPreparationQueue.Pass,
+    ): Pair<TrackFeatures.Features, Double>? {
+        val decoded = decodeMono(stream, TrackFeatures.sampleRate, pass) ?: return null
+        val seconds = DesktopAnalysisWindows.measuredDuration(decoded.samples.size, TrackFeatures.sampleRate, duration, decoded.containerDuration)
+            ?: return null
+        return TrackFeatures.analyze(decoded.samples, seconds)?.let { it to seconds }
+    }
+
+    private fun modelRegions(
+        stream: DesktopStream,
+        duration: Double,
+        span: Double,
+        pass: DesktopPreparationQueue.Pass,
+    ): List<DesktopAnalysisWindows.Evidence> {
         val decoder = DesktopAudioDecoder()
-        val opened = decoder.open(
-            url = stream.url,
-            headers = stream.headers,
-            requested = DesktopPcmFormat(rate.toInt(), channels = 1, bytesPerSample = 4, isFloat = true),
-            windowed = stream.windowedReads,
-            transport = stream.transport,
-        )
-        if (opened.isFailure) {
-            decoder.close()
-            return null
-        }
+        val unbind = pass.onCancel(decoder::cancelPendingRead)
+        fun cancelled() = stopped() || pass.cancelled
         return try {
+            if (cancelled()) return emptyList()
+            val rate = VocalSpectrogram.sampleRate.toInt()
+            if (decoder.open(
+                url = stream.url, headers = stream.headers,
+                requested = DesktopPcmFormat(rate, channels = 2, bytesPerSample = 4, isFloat = true),
+                windowed = stream.windowedReads, transport = stream.transport,
+                preserveSourceSampleRate = false,
+            ).isFailure) return emptyList()
+            val reader = DesktopAnalysisWindowReader(rate, ::cancelled) {
+                decoder.readSamples()?.copyOf(decoder.sampleCount)
+            }
+            val regions = ArrayList<DesktopAnalysisWindows.Evidence>()
+            for ((from, until) in DesktopAnalysisWindows.plan(duration, span)) {
+                if (cancelled()) return emptyList()
+                val pcm = reader.read(from, until) ?: continue
+                if (pcm.seconds < 1) continue
+                val mono = FloatArray(pcm.left.size) { (pcm.left[it] + pcm.right[it]) * .5f }
+                val modelInput = MelSpectrogram.resample(mono, rate.toDouble(), MelSpectrogram.sampleRate)
+                if (cancelled()) return emptyList()
+                val grid = modelInput?.let { beats.track(it, offsetSeconds = pcm.start) }
+                if (cancelled()) return emptyList()
+                val values = vocals.track(pcm.left, pcm.right, rate.toDouble())
+                if (cancelled()) return emptyList()
+                // STFT padding is not audio coverage. Never label its padded frames as measured.
+                val vocal = values?.let {
+                    val count = minOf(it.size, kotlin.math.floor(pcm.seconds * VocalSpectrogram.frameRate).toInt())
+                    if (count > 0) CurveWindow(pcm.start, VocalSpectrogram.frameRate, it.copyOf(count)) else null
+                }
+                regions += DesktopAnalysisWindows.Evidence(pcm.start, pcm.seconds, grid, vocal, DesktopAnalysisWindows.levels(pcm))
+            }
+            regions
+        } finally {
+            unbind()
+            decoder.close()
+        }
+    }
+
+    /** The whole track as mono float at [rate]. */
+    private fun decode(stream: DesktopStream, rate: Double, pass: DesktopPreparationQueue.Pass): FloatArray? =
+        decodeMono(stream, rate, pass)?.samples
+
+    private class DecodedMono(val samples: FloatArray, val containerDuration: Double?)
+
+    private fun decodeMono(stream: DesktopStream, rate: Double, pass: DesktopPreparationQueue.Pass): DecodedMono? {
+        val decoder = DesktopAudioDecoder()
+        val unbind = pass.onCancel(decoder::cancelPendingRead)
+        return try {
+            if (stopped() || pass.cancelled) return null
+            val opened = decoder.open(
+                url = stream.url,
+                headers = stream.headers,
+                requested = DesktopPcmFormat(rate.toInt(), channels = 1, bytesPerSample = 4, isFloat = true),
+                windowed = stream.windowedReads,
+                transport = stream.transport,
+                preserveSourceSampleRate = false,
+            )
+            if (opened.isFailure) return null
             val out = ArrayList<FloatArray>()
             var total = 0
             while (true) {
-                if (stopped()) return null
+                if (stopped() || pass.cancelled) return null
                 val block = decoder.readSamples() ?: break
                 val count = decoder.sampleCount
                 if (count <= 0) continue
-                out += block.copyOf(count)
-                total += count
-                if (total > MAX_SAMPLES) break
+                val retained = minOf(count, MAX_SAMPLES - total)
+                out += block.copyOf(retained)
+                total += retained
+                // A capped decode is not a measured end of the song.
+                if (total >= MAX_SAMPLES) return null
             }
             if (total == 0) return null
             val samples = FloatArray(total)
@@ -289,16 +423,24 @@ internal class DesktopTrackAnalyzer(
                 block.copyInto(samples, at)
                 at += block.size
             }
-            samples
+            DecodedMono(samples, decoder.durationUs?.div(1_000_000.0))
         } finally {
+            unbind()
             decoder.close()
         }
     }
 
+    val isTerminated: Boolean get() = preparation.isTerminated
+
+    fun awaitTermination(timeoutNanos: Long): Boolean = preparation.awaitTermination(timeoutNanos)
+
     fun release() {
-        worker.shutdownNow()
+        preparation.close {
+            if (beatTracker.isInitialized()) beatTracker.value.release()
+            if (vocalTracker.isInitialized()) vocalTracker.value.release()
+        }
         results.clear()
-        running.clear()
+        measuredSources.clear()
         active.clear()
         sourceResolved.clear()
         noSource.clear()
@@ -307,6 +449,11 @@ internal class DesktopTrackAnalyzer(
     }
 
     internal companion object {
+        // Preserve earlier caches; this contract requires bounded regions, the corrected PCM
+        // clock, and desktop's retained beat weights before loop evidence can be restored.
+        internal fun analysisCacheHome(): java.io.File =
+            java.io.File(DesktopAnalysisRuntime.analysisHome(), "native-regions-v19-retired-beats-v1")
+
         private fun analysisWorker(): ExecutorService = Executors.newSingleThreadExecutor { runnable ->
             Thread(null, runnable, "BitChord-Analysis", ANALYSIS_STACK_BYTES).apply { isDaemon = true }
         }

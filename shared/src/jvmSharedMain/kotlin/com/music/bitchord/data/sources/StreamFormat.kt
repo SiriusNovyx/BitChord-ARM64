@@ -20,6 +20,15 @@ data class StreamFormat(
     val kbps: Int? = null,
     val sampleRateHz: Int? = null,
     val bitDepth: Int? = null,
+    /**
+     * True when [kbps] was filled in from the tier the source was asked for
+     * rather than stated by the source — an addon's HIGH meaning 320. Still
+     * worth ranking a stream by, but not a measurement of what arrived; see
+     * [NerdStats.sourceBitrate][com.music.bitchord.data.NerdStats.sourceBitrate].
+     */
+    val kbpsInferred: Boolean = false,
+    /** An addon declaration, kept separate from a codec that it actually stated. */
+    val sourceDeclaredAtmos: Boolean? = null,
 ) {
     /**
      * Whether this is a bit-exact copy of the master the source holds.
@@ -34,7 +43,7 @@ data class StreamFormat(
 
     /** Dolby Atmos carried in E-AC-3 JOC. This is immersive, but not lossless. */
     val isDolbyAtmos: Boolean
-        get() = codec in DOLBY_ATMOS_CODECS
+        get() = sourceDeclaredAtmos == true || codec in DOLBY_ATMOS_CODECS
 
     /** "24-bit · 192 kHz", "FLAC", "320 kbps" — whichever parts are known. */
     val summary: String

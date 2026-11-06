@@ -12,6 +12,15 @@ object DesktopSleepTimer {
 
     val presets = listOf(15, 30, 45, 60)
 
+    const val MIN_CUSTOM_MINUTES = 5
+    const val MAX_CUSTOM_MINUTES = 720
+
+    fun parseCustomMinutes(input: String): Int? {
+        val value = input.trim()
+        if (value.isEmpty() || value.any { it !in '0'..'9' }) return null
+        return value.toIntOrNull()?.takeIf { it in MIN_CUSTOM_MINUTES..MAX_CUSTOM_MINUTES }
+    }
+
     fun start(minutes: Int) {
         require(minutes > 0) { "Sleep timer duration must be positive" }
         afterTrack.value = false

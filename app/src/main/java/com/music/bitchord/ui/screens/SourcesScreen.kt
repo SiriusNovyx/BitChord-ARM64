@@ -1,5 +1,6 @@
 package com.music.bitchord.ui.screens
 
+import com.music.bitchord.ui.icons.AppIcons
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -25,12 +26,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Bluetooth
 import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Dns
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.FileDownloadOff
 import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.Extension
@@ -39,8 +41,7 @@ import androidx.compose.material.icons.rounded.PlayCircle
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
+import com.music.bitchord.ui.components.IosSwitch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -148,11 +149,12 @@ fun SourcesScreen(
     val probeKey = configs.filter { it.kind.needsServer }
         .joinToString { "${it.id}@${it.baseUrl}@${it.checkValidLossless}" } + "@${losslessOutput.capable}"
     LaunchedEffect(probeKey) {
-        configs.filter { it.kind.needsServer && it.isComplete && !it.awaitsLosslessOutput }.forEach { config ->
+        configs.filter { it.enabled && it.kind.needsServer && it.isComplete && !it.awaitsLosslessOutput }.forEach { config ->
             val source = SourceRegistry.instance(config.id) ?: return@forEach
             health[config.id] = withContext(Dispatchers.IO) {
                 runCatching { source.health() }
                     .getOrElse { SourceHealth.Unreachable(it.message ?: "Failed") }
+                    .also { SourceRegistry.recordHealth(config.id, it) }
             }
             // An addon names itself, so the row takes that name rather than a
             // hostname — and rather than a field asking the user to make one up.
@@ -194,12 +196,7 @@ fun SourcesScreen(
             .verticalScroll(rememberScrollState())
             .padding(contentPadding),
     ) {
-        Text(
-            text = stringResource(R.string.source),
-            style = MaterialTheme.typography.displayLarge,
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 14.dp),
-        )
+        SettingsPageTitle(stringResource(R.string.source))
 
         SettingsGroup(
             header = stringResource(R.string.sources_order_header),
@@ -214,20 +211,9 @@ fun SourcesScreen(
                 }
             },
         ) {
-            // The addons are split out from the rest because they are the only
-            // rows whose order is the *user's*. Everything else ranks by kind,
-            // which is fixed in [SourceKind] and not something a drag should be
-            // able to argue with — a gesture that let JioSaavn be dragged above
-            // an addon would be offering a choice the resolver does not
-            // actually honour.
-            //
-            // They are still one continuously numbered list. The numbers say
-            // what order the sources are tried in, and restarting the count
-            // under a second heading would break the one thing this screen is
-            // for.
+            // Both groups keep their saved order; custom sources always precede built-ins.
             val addons = configs.filter { it.kind.isUserAdded }
             val fixed = configs.filterNot { it.kind.isUserAdded }
-                .sortedBy { it.kind.rank }
 
             val row: @Composable (Int, SourceConfig, (@Composable () -> Unit)?) -> Unit =
                 { position, config, handle ->
@@ -248,9 +234,7 @@ fun SourcesScreen(
                         // delete. JioSaavn and YouTube have no address to
                         // change, so a tap on them would open an empty editor.
                         onClick = if (config.kind.needsServer) ({ onEditSource(config) }) else null,
-                        // YouTube gets no switch at all — see
-                        // [SourceRegistry.setEnabled] for why one would be a lie.
-                        onToggle = if (config.kind == SourceKind.YOUTUBE) {
+                        onToggle = if (config.kind == SourceKind.SPOTIFY) {
                             null
                         } else {
                             ({ enabled ->
@@ -274,13 +258,14 @@ fun SourcesScreen(
             // No leading divider when addons came first: each of those wrappers
             // ends with one, which is what makes them all the same height for
             // the drag to measure against.
-            fixed.forEachIndexed { index, config ->
-                if (index > 0) RowDivider()
-                row(addons.size + index + 1, config, null)
-            }
+            ReorderableAddons(
+                addons = fixed,
+                onReorder = { SourceRegistry.reorderBuiltIns(it.map(SourceConfig::id)) },
+                row = { position, config, handle -> row(addons.size + position, config, handle) },
+            )
 
             // The one shut-out an addon can't tell apart from "not lossless":
-            // headphones on LDAC or LHDC whose codec Android won't name without
+            // headphones on LDAC, LHDC or SSC UHQ whose codec Android won't name without
             // the Nearby devices permission. Offered only then, and only from
             // here, where the reason for asking is on screen.
             val waiting = configs.any { it.enabled && it.awaitsLosslessOutput }
@@ -300,7 +285,7 @@ fun SourcesScreen(
         // so it takes no part in the ranking and gets its own group. The
         // editor is raised to the activity like every other alert.
         RemoteLibrarySection(
-            icon = Icons.Rounded.Cloud,
+            icon = AppIcons.Cloud,
             title = stringResource(R.string.webdav),
             description = stringResource(R.string.webdav_description),
             subtitle = if (webdavUrl.isBlank()) {
@@ -325,7 +310,7 @@ fun SourcesScreen(
         // for the same reason: it holds the listener's own files instead of
         // answering for YouTube's, so it takes no part in the ranking above.
         RemoteLibrarySection(
-            icon = Icons.Rounded.Storage,
+            icon = AppIcons.Storage,
             title = stringResource(R.string.smb),
             description = stringResource(R.string.smb_description),
             subtitle = if (smbHost.isBlank() || smbShare.isBlank()) {
@@ -357,7 +342,7 @@ fun SourcesScreen(
             footer = stringResource(R.string.upgrade_length_slack_footer),
         ) {
             SliderRow(
-                icon = Icons.Rounded.Tune,
+                icon = AppIcons.Tune,
                 title = stringResource(R.string.upgrade_length_slack),
                 subtitle = stringResource(R.string.upgrade_length_slack_subtitle),
                 value = stringResource(R.string.seconds_short, upgradeLengthSlackSeconds),
@@ -408,7 +393,7 @@ private fun RemoteLibrarySection(
         if (configured) {
             RowDivider()
             SettingsRow(
-                icon = Icons.Rounded.Dns,
+                icon = AppIcons.Dns,
                 title = if (testing) {
                     stringResource(R.string.testing)
                 } else {
@@ -437,7 +422,7 @@ private fun RemoteLibrarySection(
             )
             RowDivider()
             SettingsRow(
-                icon = Icons.Rounded.DeleteSweep,
+                icon = AppIcons.DeleteSweep,
                 title = disconnectTitle,
                 onClick = {
                     onDisconnect()
@@ -530,7 +515,7 @@ private fun ReorderableAddons(
             ) {
                 row(index + 1, config) {
                     Icon(
-                        imageVector = Icons.Rounded.DragHandle,
+                        imageVector = AppIcons.DragHandle,
                         contentDescription = stringResource(R.string.drag_to_reorder),
                         tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
                         modifier = Modifier
@@ -642,7 +627,7 @@ private fun AddSourceRow(onClick: () -> Unit) {
         // the plus reads as belonging to the same column the list is indexed by.
         Spacer(Modifier.width(24.dp))
         Icon(
-            imageVector = Icons.Rounded.Add,
+            imageVector = AppIcons.Add,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(ICON_SIZE),
@@ -666,7 +651,7 @@ private fun AddSourceRow(onClick: () -> Unit) {
 
 /**
  * Asks for Nearby devices so the Bluetooth codec can be read — the only way an
- * LDAC or LHDC headset qualifies for an addon's `checkValidLossless`. Draws
+ * LDAC, LHDC or SSC UHQ headset qualifies for an addon's `checkValidLossless`. Draws
  * nothing where the permission does not exist (before Android 12) or is
  * already granted, since asking again would do nothing.
  */
@@ -718,7 +703,7 @@ private fun BluetoothCodecPermissionRow() {
     ) {
         Spacer(Modifier.width(24.dp))
         Icon(
-            imageVector = Icons.Rounded.Bluetooth,
+            imageVector = AppIcons.Bluetooth,
             contentDescription = null,
             tint = if (denied) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(ICON_SIZE),
@@ -790,11 +775,12 @@ private fun SourceRow(
         Spacer(Modifier.width(6.dp))
         Icon(
             imageVector = when (config.kind) {
-                SourceKind.ADDON -> Icons.Rounded.Extension
-                SourceKind.CUSTOM_MODULE -> Icons.Rounded.Extension
-                SourceKind.MODULE -> Icons.Rounded.Extension
-                SourceKind.JIOSAAVN -> Icons.Rounded.GraphicEq // or some other icon
-                SourceKind.YOUTUBE -> Icons.Rounded.PlayCircle
+                SourceKind.ADDON -> AppIcons.Extension
+                SourceKind.CUSTOM_MODULE -> AppIcons.Extension
+                SourceKind.MODULE -> AppIcons.Extension
+                SourceKind.JIOSAAVN -> AppIcons.GraphicEq // or some other icon
+                SourceKind.SPOTIFY -> AppIcons.GraphicEq
+                SourceKind.YOUTUBE -> AppIcons.PlayCircle
             },
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onBackground,
@@ -852,22 +838,49 @@ private fun SourceRow(
                 },
                 maxLines = 2,
             )
+            // The addon's own `allowDownloads`, on a line of its own and both
+            // ways round, so whether downloads come from it is answered here
+            // rather than found out from where a downloaded file came from.
+            // Read off the stored manifest, so it holds while the server is
+            // down too.
+            if (config.kind == SourceKind.ADDON && config.isComplete) {
+                Row(
+                    modifier = Modifier.padding(top = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = if (config.allowDownloads) {
+                            AppIcons.Download
+                        } else {
+                            AppIcons.FileDownloadOff
+                        },
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(14.dp),
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        text = stringResource(
+                            if (config.allowDownloads) R.string.source_downloads_on else R.string.source_downloads_off,
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                    )
+                }
+            }
         }
         Spacer(Modifier.width(8.dp))
         if (onToggle == null) {
             Text(
-                text = stringResource(R.string.always_on),
+                text = if (config.kind == SourceKind.SPOTIFY) "Unavailable" else stringResource(R.string.always_on),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         } else {
-            Switch(
+            IosSwitch(
                 checked = config.enabled,
                 onCheckedChange = onToggle,
-                colors = SwitchDefaults.colors(
-                    checkedTrackColor = MaterialTheme.colorScheme.primary,
-                    checkedBorderColor = MaterialTheme.colorScheme.primary,
-                ),
             )
         }
         // Outside the dimming above, and last in the row. A source switched off
@@ -895,12 +908,10 @@ private fun AudioQuality.localizedLabel(): String = stringResource(
 private fun SourceConfig.statusLine(health: SourceHealth?): String = when {
     !isComplete -> stringResource(R.string.source_setup_required)
     kind == SourceKind.JIOSAAVN -> stringResource(R.string.jiosaavn_mismatch_warning)
+    // Downloads are a line of their own under this one — see [SourceRow].
     health is SourceHealth.Ok -> listOfNotNull(
         health.detail,
         kind.labels.take(3).joinToString(" · "),
-        // The addon's own `allowDownloads: 0`, said where the user will look
-        // when a download from it came from somewhere else.
-        stringResource(R.string.source_downloads_off).takeIf { !allowDownloads },
     ).joinToString(" · ")
     health is SourceHealth.Rejected -> health.reason
     health is SourceHealth.Unreachable -> stringResource(R.string.source_unreachable, health.reason)

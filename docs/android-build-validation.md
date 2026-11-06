@@ -1,3 +1,5 @@
+> Historical baseline: validation and measurements below predate the comprehensive v1.8.1 integration. See [the current integration record](upstream-v181-integration.md) for current source, packages and verification status. Earlier selective-import policy is superseded.
+
 # Android modernization validation
 
 Verified locally on 2026-10-16 with the opt-in Gradle 9.5.1 wrapper, native Windows

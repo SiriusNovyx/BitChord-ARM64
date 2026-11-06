@@ -30,8 +30,8 @@ import kotlin.math.tan
  * chase their targets across [GLIDE_FRAMES]-frame sub-blocks.
  *
  * The make-up only takes back half of a boost ([EqCurve.preampDb]), so the odd peak lands past
- * full scale. Android catches those at the end of its DSP chain; nothing after this on the desktop
- * would, so the [PeakLimiter] runs here, on the way out of every block this has shaped.
+ * full scale. The [PeakLimiter] catches those per deck before transition processing. The desktop's
+ * final output catcher also protects peaks introduced later by mixing, effects and stretching.
  */
 internal class DesktopEqualizer {
 

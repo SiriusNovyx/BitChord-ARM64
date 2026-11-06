@@ -26,6 +26,7 @@ import org.bytedeco.ffmpeg.global.avformat.AVSEEK_FLAG_BACKWARD
 import org.bytedeco.ffmpeg.global.avformat.avformat_open_input
 import org.bytedeco.ffmpeg.global.avutil.AVMEDIA_TYPE_VIDEO
 import org.bytedeco.ffmpeg.global.avutil.AV_PIX_FMT_BGRA
+import org.bytedeco.ffmpeg.global.avutil.AV_NOPTS_VALUE
 import org.bytedeco.ffmpeg.global.avutil.av_dict_set
 import org.bytedeco.ffmpeg.global.avutil.av_frame_alloc
 import org.bytedeco.ffmpeg.global.avutil.av_frame_free
@@ -41,7 +42,7 @@ import org.bytedeco.javacpp.IntPointer
 import org.bytedeco.javacpp.PointerPointer
 
 /** The motion artwork, decoded here rather than played by a second media stack. */
-internal class DesktopCanvasDecoder {
+internal class DesktopCanvasDecoder : AutoCloseable {
 
     private var format: AVFormatContext? = null
     private var codec: AVCodecContext? = null
@@ -56,6 +57,14 @@ internal class DesktopCanvasDecoder {
     private var sourceWidth = 0
     private var sourceHeight = 0
     private var streamIndex = -1
+    private var timestampNumerator = 0
+    private var timestampDenominator = 1
+    private var firstTimestamp = 0L
+    private var seekTargetMs: Long? = null
+
+    /** Source time of the last returned frame, absent if the stream has no usable timestamps. */
+    var positionMs: Long? = null
+        private set
 
     /** Seconds per frame, from the stream's own rate; used to pace playback. */
     var frameIntervalMillis: Long = 40L
@@ -100,6 +109,9 @@ internal class DesktopCanvasDecoder {
         }
 
         val stream = opened.streams(streamIndex)
+        timestampNumerator = stream.time_base().num()
+        timestampDenominator = stream.time_base().den().coerceAtLeast(1)
+        firstTimestamp = stream.start_time().takeUnless { it == AV_NOPTS_VALUE } ?: 0L
         val parameters = stream.codecpar()
         val decoder = avcodec_find_decoder(parameters.codec_id()) ?: error("no decoder for this clip")
         val context = avcodec_alloc_context3(decoder)
@@ -136,6 +148,22 @@ internal class DesktopCanvasDecoder {
         frame = av_frame_alloc()
     }.onFailure { close() }
 
+    /** Seek to a keyframe, then discard preroll until the requested displayed frame. */
+    fun seekTo(positionMs: Long): Boolean {
+        val container = format ?: return false
+        val context = codec ?: return false
+        if (timestampNumerator <= 0) return false
+        val target = positionMs.coerceAtLeast(0L)
+        val timestamp = firstTimestamp + (target.toDouble() * timestampDenominator /
+            (1_000.0 * timestampNumerator)).toLong()
+        if (av_seek_frame(container, streamIndex, timestamp, AVSEEK_FLAG_BACKWARD) < 0) return false
+        avcodec_flush_buffers(context)
+        packet?.let(::av_packet_unref)
+        seekTargetMs = target
+        this.positionMs = null
+        return true
+    }
+
     /** The next frame as BGRA bytes, looping at the end. */
     fun nextFrame(into: ByteArray): Boolean {
         val container = format ?: return false
@@ -145,6 +173,13 @@ internal class DesktopCanvasDecoder {
         var looped = false
         while (true) {
             if (avcodec_receive_frame(context, decoded) == 0) {
+                val timestamp = decoded.best_effort_timestamp()
+                val observedMs = timestamp.takeUnless { it == AV_NOPTS_VALUE || timestampNumerator <= 0 }
+                    ?.let { ((it - firstTimestamp).toDouble() * timestampNumerator * 1_000.0 /
+                        timestampDenominator).toLong().coerceAtLeast(0L) }
+                val target = seekTargetMs
+                if (target != null && observedMs != null && observedMs < target) continue
+                seekTargetMs = null
                 val converter = scalerFor(decoded.format()) ?: return false
                 sws_scale(converter, decoded.data(), decoded.linesize(), 0, sourceHeight, planes, strides)
                 // Read through an explicit NIO view rewound each time rather than through the
@@ -153,6 +188,7 @@ internal class DesktopCanvasDecoder {
                     pixels.rewind()
                     pixels.get(into, 0, minOf(into.size, width * height * 4))
                 }
+                positionMs = observedMs
                 return true
             }
             if (av_read_frame(container, pkt) < 0) {
@@ -160,6 +196,8 @@ internal class DesktopCanvasDecoder {
                 looped = true
                 av_seek_frame(container, streamIndex, 0, AVSEEK_FLAG_BACKWARD)
                 avcodec_flush_buffers(context)
+                seekTargetMs = null
+                positionMs = null
                 continue
             }
             if (pkt.stream_index() == streamIndex) avcodec_send_packet(context, pkt)
@@ -189,7 +227,7 @@ internal class DesktopCanvasDecoder {
         return built
     }
 
-    fun close() {
+    override fun close() {
         frame?.let { av_frame_free(it) }
         packet?.let { av_packet_free(it) }
         scaler?.let { sws_freeContext(it) }
@@ -210,6 +248,11 @@ internal class DesktopCanvasDecoder {
         streamIndex = -1
         sourceWidth = 0
         sourceHeight = 0
+        positionMs = null
+        seekTargetMs = null
+        timestampNumerator = 0
+        timestampDenominator = 1
+        firstTimestamp = 0L
     }
 
     private companion object {

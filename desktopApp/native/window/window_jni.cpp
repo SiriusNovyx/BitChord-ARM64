@@ -5,6 +5,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <commctrl.h>
+#include <initguid.h>
 #include <audioclient.h>
 #include <dwmapi.h>
 #include <propkeydef.h>
@@ -22,12 +23,194 @@
 #include <cstring>
 #include <mutex>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 namespace {
 
+bool is_touch_mouse_message(UINT message, ULONG_PTR extra) {
+    const bool mouse = message >= WM_MOUSEFIRST && message <= WM_MOUSELAST &&
+        message != WM_MOUSEWHEEL && message != WM_MOUSEHWHEEL;
+    return mouse && (extra & 0xffffff80UL) == 0xff515780UL;
+}
+
+int touch_phase(DWORD flags) {
+    if (flags & TOUCHEVENTF_UP) return 2;
+    if (flags & TOUCHEVENTF_DOWN) return 0;
+    if (flags & TOUCHEVENTF_MOVE) return 1;
+    return -1;
+}
+
+std::pair<float, float> touch_client_coordinates(LONG x, LONG y, POINT origin) {
+    return {x / 100.f - origin.x, y / 100.f - origin.y};
+}
+
+bool cancels_touch(HWND window, UINT message, WPARAM wparam) {
+    if (message == WM_KILLFOCUS) {
+        const HWND root = GetAncestor(window, GA_ROOT);
+        const HWND next = reinterpret_cast<HWND>(wparam);
+        return next ? GetAncestor(next, GA_ROOT) != root : GetForegroundWindow() != root;
+    }
+    // Mouse capture changes are independent of the WM_TOUCH contact owned by this bridge.
+    return message == WM_CANCELMODE || message == WM_POINTERCAPTURECHANGED ||
+        (message == WM_SHOWWINDOW && !wparam);
+}
+
+JavaVM* g_touch_vm = nullptr;
+jclass g_touch_class = nullptr;
+jmethodID g_touch_callback = nullptr;
+jmethodID g_touch_trace = nullptr;
+constexpr UINT WM_BITCHORD_TOUCH = WM_APP + 0x44;
+constexpr UINT_PTR TOUCH_SUBCLASS = 0x424354;
+
+struct TouchConfiguration { HWND canvas; bool enabled; bool result = false; };
+HHOOK g_touch_message_hook = nullptr;
+std::unordered_set<HWND> g_touch_windows;
+
+bool dispatch_touch(HWND window, int phase, DWORD id, float x, float y) {
+    if (!g_touch_vm || !g_touch_class || !g_touch_callback) return false;
+    JNIEnv* env = nullptr;
+    const jint state = g_touch_vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6);
+    const bool attached = state == JNI_EDETACHED;
+    if (attached && g_touch_vm->AttachCurrentThread(reinterpret_cast<void**>(&env), nullptr) != JNI_OK) return false;
+    if (!env) return false;
+    env->CallStaticVoidMethod(g_touch_class, g_touch_callback,
+        reinterpret_cast<jlong>(window), static_cast<jint>(phase), static_cast<jint>(id),
+        x, y, static_cast<jlong>(GetTickCount64()), static_cast<jint>(GetDpiForWindow(window)));
+    const bool success = !env->ExceptionCheck();
+    if (!success) env->ExceptionClear();
+    if (attached) g_touch_vm->DetachCurrentThread();
+    return success;
+}
+
+void trace_touch(HWND window, UINT message, int detail) {
+    if (!g_touch_trace || !g_touch_vm || !g_touch_class) return;
+    JNIEnv* env = nullptr;
+    const bool attached = g_touch_vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) == JNI_EDETACHED;
+    if (attached && g_touch_vm->AttachCurrentThread(reinterpret_cast<void**>(&env), nullptr) != JNI_OK) return;
+    if (!env) return;
+    env->CallStaticVoidMethod(g_touch_class, g_touch_trace, reinterpret_cast<jlong>(window),
+        static_cast<jint>(message), static_cast<jint>(detail));
+    if (env->ExceptionCheck()) env->ExceptionClear();
+    if (attached) g_touch_vm->DetachCurrentThread();
+}
+
+LRESULT CALLBACK touch_message_hook(int code, WPARAM removed, LPARAM param) {
+    if (code >= 0 && removed == PM_REMOVE && param) {
+        auto* message = reinterpret_cast<MSG*>(param);
+        if (g_touch_windows.count(message->hwnd) &&
+            is_touch_mouse_message(message->message, static_cast<ULONG_PTR>(GetMessageExtraInfo()))) {
+            // AWT can translate queued mouse messages before the canvas WndProc sees them.
+            trace_touch(message->hwnd, message->message | 0x10000, 0);
+            message->message = WM_NULL;
+            message->wParam = 0;
+            message->lParam = 0;
+        }
+    }
+    return CallNextHookEx(g_touch_message_hook, code, removed, param);
+}
+
+void retire_touch_window(HWND window) {
+    g_touch_windows.erase(window);
+    if (g_touch_windows.empty() && g_touch_message_hook) {
+        UnhookWindowsHookEx(g_touch_message_hook);
+        g_touch_message_hook = nullptr;
+    }
+}
+
+LRESULT CALLBACK touch_proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam,
+    UINT_PTR subclass, DWORD_PTR) {
+    if (g_touch_trace && message >= WM_MOUSEFIRST && message <= WM_MOUSELAST) {
+        trace_touch(window, message, static_cast<int>(GetMessageExtraInfo()));
+    }
+    if (message == WM_TOUCH || (message >= WM_POINTERUPDATE && message <= WM_POINTERUP)) {
+        trace_touch(window, message, LOWORD(wparam));
+    }
+    if (is_touch_mouse_message(message, static_cast<ULONG_PTR>(GetMessageExtraInfo()))) return 0;
+    if (message == WM_TOUCH) {
+        const UINT count = LOWORD(wparam);
+        const auto handle = reinterpret_cast<HTOUCHINPUT>(lparam);
+        // The OS bounds a packet; reject a corrupt count before allocating or crossing JNI.
+        std::vector<TOUCHINPUT> inputs(count <= 256 ? count : 0);
+        bool delivered = !inputs.empty() && GetTouchInputInfo(handle, count, inputs.data(), sizeof(TOUCHINPUT));
+        if (delivered) {
+            POINT origin{0, 0};
+            delivered = ClientToScreen(window, &origin) != FALSE;
+            if (delivered) for (const auto& input : inputs) {
+                const int phase = touch_phase(input.dwFlags);
+                if (input.dwFlags & TOUCHEVENTF_PALM) {
+                    dispatch_touch(window, 3, 0, 0, 0);
+                    continue;
+                }
+                if (phase < 0) continue;
+                const auto point = touch_client_coordinates(input.x, input.y, origin);
+                delivered = dispatch_touch(window, phase, input.dwID, point.first, point.second) && delivered;
+            }
+        }
+        CloseTouchInputHandle(handle);
+        if (!delivered) dispatch_touch(window, 3, 0, 0, 0);
+        return 0;
+    }
+    if (cancels_touch(window, message, wparam)) {
+        trace_touch(window, message, 0);
+        dispatch_touch(window, 3, 0, 0, 0);
+    }
+    if (message == WM_NCDESTROY) {
+        dispatch_touch(window, 3, 0, 0, 0);
+        UnregisterTouchWindow(window);
+        RemoveWindowSubclass(window, touch_proc, subclass);
+        retire_touch_window(window);
+    }
+    return DefSubclassProc(window, message, wparam, lparam);
+}
+
+bool configure_touch(HWND canvas, bool enabled) {
+    DWORD process = 0;
+    const DWORD thread = GetWindowThreadProcessId(canvas, &process);
+    if (!IsWindow(canvas) || process != GetCurrentProcessId() || thread != GetCurrentThreadId()) return false;
+    if (!enabled) {
+        DWORD_PTR previous = 0;
+        if (!GetWindowSubclass(canvas, touch_proc, TOUCH_SUBCLASS, &previous)) return true;
+        dispatch_touch(canvas, 3, 0, 0, 0);
+        if (!RemoveWindowSubclass(canvas, touch_proc, TOUCH_SUBCLASS)) return false;
+        retire_touch_window(canvas);
+        // AWT may have registered this canvas before the bridge took over its messages.
+        return (previous & 1) ? RegisterTouchWindow(canvas, static_cast<ULONG>(previous >> 1)) != FALSE
+                              : UnregisterTouchWindow(canvas) != FALSE;
+    }
+    DWORD_PTR existing = 0;
+    if (GetWindowSubclass(canvas, touch_proc, TOUCH_SUBCLASS, &existing)) return true;
+    ULONG previous_flags = 0;
+    const bool registered = IsTouchWindow(canvas, &previous_flags) != FALSE;
+    const DWORD_PTR previous = registered ? (static_cast<DWORD_PTR>(previous_flags) << 1) | 1 : 0;
+    if (!SetWindowSubclass(canvas, touch_proc, TOUCH_SUBCLASS, previous)) return false;
+    if (!RegisterTouchWindow(canvas, registered ? previous_flags : 0)) {
+        RemoveWindowSubclass(canvas, touch_proc, TOUCH_SUBCLASS);
+        return false;
+    }
+    if (!g_touch_message_hook) {
+        g_touch_message_hook = SetWindowsHookExW(WH_GETMESSAGE, touch_message_hook, nullptr, GetCurrentThreadId());
+        if (!g_touch_message_hook) {
+            RemoveWindowSubclass(canvas, touch_proc, TOUCH_SUBCLASS);
+            if (registered) RegisterTouchWindow(canvas, previous_flags); else UnregisterTouchWindow(canvas);
+            return false;
+        }
+    }
+    g_touch_windows.insert(canvas);
+    return true;
+}
+
 HWND g_window = nullptr;
 WNDPROC g_original_proc = nullptr;
+
+// The style and rectangle the window had before it went borderless fullscreen, kept so exiting can
+// put the caption window back exactly where it was.
+LONG_PTR g_fullscreen_style = 0;
+RECT g_fullscreen_rect{};
+bool g_fullscreen_active = false;
+bool g_fullscreen_activated = false;
+// Fullscreen keeps its oversized monitor bounds even when activation changes its z-order.
+RECT g_fullscreen_target{};
 
 // Posted from Java to start a caption drag on the thread that owns the window; see frame_proc.
 constexpr UINT WM_BITCHORD_DRAG = WM_APP + 0x42;
@@ -72,7 +255,7 @@ int resize_border(HWND window, bool horizontal) {
 }
 
 LRESULT resize_hit(HWND window, LPARAM position) {
-    if (!IsWindow(window) || IsZoomed(window)) return HTCLIENT;
+    if (!IsWindow(window) || IsZoomed(window) || g_fullscreen_active) return HTCLIENT;
     POINT point{GET_X_LPARAM(position), GET_Y_LPARAM(position)};
     RECT bounds{};
     if (!GetWindowRect(window, &bounds)) return HTCLIENT;
@@ -114,6 +297,11 @@ BOOL CALLBACK install_canvas_subclass(HWND window, LPARAM frame) {
 }
 
 LRESULT CALLBACK frame_proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
+    if (message == WM_BITCHORD_TOUCH && lparam) {
+        auto* config = reinterpret_cast<TouchConfiguration*>(lparam);
+        config->result = configure_touch(config->canvas, config->enabled);
+        return 0;
+    }
     if (message == WM_BITCHORD_INSTALL_CANVAS) {
         // Subclass helpers must run on the native thread that owns both AWT windows.
         EnumChildWindows(window, install_canvas_subclass, reinterpret_cast<LPARAM>(window));
@@ -136,6 +324,34 @@ LRESULT CALLBACK frame_proc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
                 sizes->rgrc[0] = monitor.rcWork;
             }
         }
+        return 0;
+    }
+
+    if (message == WM_ACTIVATE && g_fullscreen_active) {
+        g_fullscreen_activated = LOWORD(wparam) != WA_INACTIVE && HIWORD(wparam) == 0;
+        SetWindowPos(window, g_fullscreen_activated ? HWND_TOPMOST : HWND_NOTOPMOST,
+            0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    }
+
+    if (message == WM_WINDOWPOSCHANGING && g_fullscreen_active && lparam != 0) {
+        // Keep the oversized monitor bounds even in the background, but cover the taskbar only
+        // while activated. A late AWT topmost request must not undo an Alt+Tab demotion.
+        auto* pos = reinterpret_cast<WINDOWPOS*>(lparam);
+        if (!g_fullscreen_activated && pos->hwndInsertAfter == HWND_TOPMOST) {
+            pos->flags |= SWP_NOACTIVATE;
+        }
+        pos->hwndInsertAfter = g_fullscreen_activated ? HWND_TOPMOST : HWND_NOTOPMOST;
+        pos->flags &= ~static_cast<UINT>(SWP_NOMOVE | SWP_NOSIZE);
+        if (g_fullscreen_activated || (GetWindowLongPtrW(window, GWL_EXSTYLE) & WS_EX_TOPMOST) != 0) {
+            pos->flags &= ~static_cast<UINT>(SWP_NOZORDER);
+        } else {
+            // Reapplying HWND_NOTOPMOST can still raise a normal window over the active app.
+            pos->flags |= SWP_NOZORDER;
+        }
+        pos->x = g_fullscreen_target.left;
+        pos->y = g_fullscreen_target.top;
+        pos->cx = g_fullscreen_target.right - g_fullscreen_target.left;
+        pos->cy = g_fullscreen_target.bottom - g_fullscreen_target.top;
         return 0;
     }
 
@@ -250,6 +466,79 @@ bool send_system_command(UINT command) {
         PostMessageW(window, WM_SYSCOMMAND, command, 0) != 0;
 }
 
+/**
+ * Fills the whole monitor — taskbar included — with a frameless window above it. A maximized window
+ * can never cover a taskbar told to stay on top, so this is what the player's full-screen button
+ * and F11 ask for. The window's own style and rectangle survive the trip and come back on exit.
+ *
+ * The popup is pushed a few pixels past every edge of the monitor, so DWM's rounded-corner cutout
+ * and any sub-pixel seam where the surface used to stop land off-screen rather than showing the
+ * desktop through them. WM_WINDOWPOSCHANGING pins that rectangle; only the activated window stays
+ * in the topmost band, so switching to another application can cover it.
+ */
+bool set_fullscreen(HWND window, bool on) {
+    if (window == nullptr || !IsWindow(window)) return false;
+
+    if (on) {
+        if (g_fullscreen_active) return true;
+        MONITORINFO monitor{sizeof(MONITORINFO)};
+        const HMONITOR handle = MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST);
+        if (handle == nullptr || GetMonitorInfoW(handle, &monitor) == FALSE) return false;
+
+        g_fullscreen_style = GetWindowLongPtrW(window, GWL_STYLE);
+        if (GetWindowRect(window, &g_fullscreen_rect) == FALSE) return false;
+        constexpr int OVERSHOOT = 8;
+        g_fullscreen_target = RECT{
+            monitor.rcMonitor.left - OVERSHOOT,
+            monitor.rcMonitor.top - OVERSHOOT,
+            monitor.rcMonitor.right + OVERSHOOT,
+            monitor.rcMonitor.bottom + OVERSHOOT,
+        };
+
+        // Corners squared off and no extended frame: the material and the rounded-corner mask are
+        // what left the see-through ring around the edges. The flag goes up first so the enabling
+        // SetWindowPos below is itself clamped to the pinned rectangle.
+        g_fullscreen_active = true;
+        g_fullscreen_activated = GetForegroundWindow() == window;
+        const int square = 1;  // DWMWCP_DONOTROUND
+        DwmSetWindowAttribute(
+            window, static_cast<DWMWINDOWATTRIBUTE>(DWMWA_WINDOW_CORNER_PREFERENCE),
+            &square, sizeof(square));
+        const MARGINS no_frame{0, 0, 0, 0};
+        DwmExtendFrameIntoClientArea(window, &no_frame);
+
+        SetWindowLongPtrW(window, GWL_STYLE, WS_POPUP | (g_fullscreen_style & WS_VISIBLE));
+        SetWindowPos(
+            window, g_fullscreen_activated ? HWND_TOPMOST : HWND_NOTOPMOST,
+            g_fullscreen_target.left, g_fullscreen_target.top,
+            g_fullscreen_target.right - g_fullscreen_target.left,
+            g_fullscreen_target.bottom - g_fullscreen_target.top,
+            SWP_FRAMECHANGED | SWP_SHOWWINDOW | SWP_NOACTIVATE);
+        return true;
+    }
+
+    if (!g_fullscreen_active) return true;
+    g_fullscreen_active = false;
+    g_fullscreen_activated = false;
+    const int rounded = 2;  // DWMWCP_ROUND
+    DwmSetWindowAttribute(
+        window, static_cast<DWMWINDOWATTRIBUTE>(DWMWA_WINDOW_CORNER_PREFERENCE),
+        &rounded, sizeof(rounded));
+
+    SetWindowLongPtrW(window, GWL_STYLE, g_fullscreen_style);
+    SetWindowPos(
+        window, HWND_NOTOPMOST,
+        g_fullscreen_rect.left, g_fullscreen_rect.top,
+        g_fullscreen_rect.right - g_fullscreen_rect.left,
+        g_fullscreen_rect.bottom - g_fullscreen_rect.top,
+        SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+    // Hand the frame's own shadow margin and any material back; DesktopWindowBackdrop.apply()
+    // re-asserts the chosen material over the top of this on the Kotlin side.
+    const MARGINS shadow_frame{1, 1, 1, 1};
+    DwmExtendFrameIntoClientArea(window, &shadow_frame);
+    return true;
+}
+
 // ---- Shared-mode Windows audio --------------------------------------------
 //
 // One render stream, owned by the playback thread through the JNI calls below. What Kotlin asks
@@ -276,6 +565,7 @@ uint64_t g_audio_played_offset = 0;
 std::wstring g_audio_wanted;
 std::wstring g_audio_endpoint_id;
 std::wstring g_audio_device_name;
+std::string g_audio_route = "UNKNOWN";
 std::wstring g_audio_error;
 
 // Set from the notification thread; read by the playback thread on its next write.
@@ -416,6 +706,7 @@ void release_client_locked() {
     g_audio_buffer_frames = 0;
     g_audio_endpoint_id.clear();
     g_audio_device_name.clear();
+    g_audio_route = "UNKNOWN";
 }
 
 void release_audio_locked() {
@@ -461,6 +752,36 @@ std::wstring lower(std::wstring value) {
         return static_cast<wchar_t>(towlower(c));
     });
     return value;
+}
+
+const char* classify_audio_route(const std::wstring& enumerator, UINT form_factor) {
+    const auto transport = lower(enumerator);
+    if (transport == L"usb") return "USB";
+    if (transport == L"bthenum" || transport == L"bthle" || transport == L"bthhfenum" ||
+        transport == L"bthledevice") return "BLUETOOTH";
+    switch (form_factor) {
+        case Speakers: return "SPEAKERS";
+        case Headphones: case Headset: case Handset: return "HEADPHONES";
+        case DigitalAudioDisplayDevice: return "HDMI";
+        case SPDIF: return "SPDIF";
+        case RemoteNetworkDevice: case LineLevel: case Microphone: case UnknownDigitalPassthrough: return "OTHER";
+        default: return "UNKNOWN";
+    }
+}
+
+std::string device_audio_route(IMMDevice* device) {
+    IPropertyStore* store = nullptr;
+    UINT form_factor = UnknownFormFactor;
+    if (SUCCEEDED(device->OpenPropertyStore(STGM_READ, &store)) && store) {
+        PROPVARIANT value;
+        PropVariantInit(&value);
+        if (SUCCEEDED(store->GetValue(PKEY_AudioEndpoint_FormFactor, &value)) && value.vt == VT_UI4) {
+            form_factor = value.ulVal;
+        }
+        PropVariantClear(&value);
+        store->Release();
+    }
+    return classify_audio_route(property_string(device, PKEY_Device_EnumeratorName), form_factor);
 }
 
 /** Endpoint ids look like `{0.0.0.00000000}.{guid}`; anything else is a name from before them. */
@@ -572,6 +893,7 @@ bool start_client_locked(IMMDevice* device) {
     }
     g_audio_endpoint_id = endpoint_id(device);
     g_audio_device_name = property_string(device, PKEY_Device_FriendlyName);
+    g_audio_route = device_audio_route(device);
     return true;
 }
 
@@ -798,6 +1120,31 @@ jobjectArray list_devices(JNIEnv* env) {
 extern "C" {
 
 JNIEXPORT jboolean JNICALL
+Java_com_music_bitchord_desktop_DesktopTouchInput_nativeSetTouchEnabled(
+    JNIEnv* env, jclass receiver, jlong handle, jboolean enabled) {
+    if (!g_window || !IsWindow(g_window)) return JNI_FALSE;
+    if (!g_touch_class && enabled) {
+        env->GetJavaVM(&g_touch_vm);
+        g_touch_callback = env->GetStaticMethodID(receiver, "onNativeTouch", "(JIIFFJI)V");
+        if (!g_touch_callback) return JNI_FALSE;
+        g_touch_class = static_cast<jclass>(env->NewGlobalRef(receiver));
+        if (!g_touch_class) return JNI_FALSE;
+        const jclass boolean_class = env->FindClass("java/lang/Boolean");
+        const jmethodID get_boolean = env->GetStaticMethodID(boolean_class, "getBoolean", "(Ljava/lang/String;)Z");
+        const jstring property = env->NewStringUTF("bitchord.touch.trace");
+        if (env->CallStaticBooleanMethod(boolean_class, get_boolean, property)) {
+            g_touch_trace = env->GetStaticMethodID(receiver, "onNativeTrace", "(JII)V");
+            if (env->ExceptionCheck()) env->ExceptionClear();
+        }
+        env->DeleteLocalRef(property);
+        env->DeleteLocalRef(boolean_class);
+    }
+    TouchConfiguration config{reinterpret_cast<HWND>(handle), enabled == JNI_TRUE};
+    SendMessageW(g_window, WM_BITCHORD_TOUCH, 0, reinterpret_cast<LPARAM>(&config));
+    return config.result ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jboolean JNICALL
 Java_com_music_bitchord_desktop_DesktopWindowsFrame_nativeInstall(
     JNIEnv* env, jclass, jstring title) {
     return install_frame(find_window(env, title)) ? JNI_TRUE : JNI_FALSE;
@@ -827,6 +1174,11 @@ Java_com_music_bitchord_desktop_DesktopWindowsFrame_nativeToggleMaximize(JNIEnv*
     if (window == nullptr || !IsWindow(window)) return JNI_FALSE;
     return send_system_command(IsZoomed(window) ? SC_RESTORE : SC_MAXIMIZE)
         ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_music_bitchord_desktop_DesktopWindowsFrame_nativeSetFullscreen(JNIEnv*, jclass, jboolean on) {
+    return set_fullscreen(g_window, on == JNI_TRUE) ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT jint JNICALL
@@ -941,6 +1293,12 @@ Java_com_music_bitchord_desktop_DesktopWindowsAudio_nativeDeviceName(JNIEnv* env
     const auto name = device_name_snapshot();
     return env->NewString(
         reinterpret_cast<const jchar*>(name.c_str()), static_cast<jsize>(name.size()));
+}
+
+JNIEXPORT jstring JNICALL
+Java_com_music_bitchord_desktop_DesktopWindowsAudio_nativeAudioRoute(JNIEnv* env, jclass) {
+    std::lock_guard<std::mutex> guard(g_audio_mutex);
+    return env->NewStringUTF(g_audio_route.c_str());
 }
 
 JNIEXPORT jstring JNICALL

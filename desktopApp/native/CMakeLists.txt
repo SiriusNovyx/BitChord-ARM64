@@ -76,9 +76,6 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows" AND NOT CMAKE_HOST_WIN32)
 endif()
 
 target_compile_options(bitchord_analysis PRIVATE -O2)
-if(MINGW)
-    target_link_options(bitchord_analysis PRIVATE -static -static-libgcc -static-libstdc++)
-endif()
 
 # `System.mapLibraryName` asks for `bitchord_analysis.dll` on Windows, with no
 # prefix — but MinGW's CMake defaults to the Unix `lib` one, so a cross-built
@@ -88,6 +85,46 @@ endif()
 # anything the toolchain set beforehand.
 if(WIN32)
     set_target_properties(bitchord_analysis PROPERTIES PREFIX "")
+endif()
+
+# The app unpacks this DLL into its private runtime directory and loads it from
+# there, where MinGW's own libstdc++/libgcc/winpthread DLLs are not. Linking them
+# statically is what makes the library self-contained; leaving them dynamic makes
+# it import libwinpthread-1.dll and fail to load on a machine without MinGW.
+if(MINGW)
+    target_link_options(bitchord_analysis PRIVATE -static -static-libgcc -static-libstdc++)
+endif()
+
+add_library(bitchord_loopmix_core OBJECT ${REPO_ROOT}/native/loopmix/loop_mix_renderer.cpp)
+target_include_directories(bitchord_loopmix_core PUBLIC
+    ${REPO_ROOT}/native
+    ${REPO_ROOT}/native/third_party
+)
+if(MSVC)
+    target_compile_options(bitchord_loopmix_core PRIVATE /O2)
+else()
+    target_compile_options(bitchord_loopmix_core PRIVATE -O2)
+endif()
+add_library(bitchord_loopmix SHARED ${REPO_ROOT}/app/src/main/cpp/jni/loopmix_jni.cpp)
+target_link_libraries(bitchord_loopmix PRIVATE bitchord_loopmix_core)
+get_target_property(BITCHORD_ANALYSIS_INCLUDES bitchord_analysis INCLUDE_DIRECTORIES)
+target_include_directories(bitchord_loopmix PRIVATE ${BITCHORD_ANALYSIS_INCLUDES})
+if(WIN32)
+    set_target_properties(bitchord_loopmix PROPERTIES PREFIX "")
+endif()
+if(MINGW)
+    target_link_options(bitchord_loopmix PRIVATE -static -static-libgcc -static-libstdc++)
+endif()
+
+option(BITCHORD_BUILD_LOOPMIX_TESTS "Build the native loop renderer regression executable" OFF)
+if(BITCHORD_BUILD_LOOPMIX_TESTS)
+    enable_testing()
+    add_executable(bitchord_loopmix_test loopmix/renderer_test.cpp)
+    target_link_libraries(bitchord_loopmix_test PRIVATE bitchord_loopmix_core)
+    if(MINGW)
+        target_link_options(bitchord_loopmix_test PRIVATE -static -static-libgcc -static-libstdc++)
+    endif()
+    add_test(NAME bitchord_loopmix_renderer COMMAND bitchord_loopmix_test)
 endif()
 
 # The Windows media controls, which are WinRT. MSVC builds them with C++/WinRT;

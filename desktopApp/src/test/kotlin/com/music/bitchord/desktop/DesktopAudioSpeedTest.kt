@@ -16,6 +16,25 @@ class DesktopAudioSpeedTest {
     private val rate = 44_100
     private val channels = 2
 
+    @Test fun `stereo polarity cannot change time stretch alignment or collapse side information`() {
+        val input = music(seconds = 1f)
+        val inverted = input.copyOf()
+        for (index in 1 until inverted.size step 2) inverted[index] = -inverted[index]
+        for (speed in listOf(1.04f, 1.1f, .8f)) {
+            val ordinary = DesktopAudioSpeed(2, rate).apply { this.speed = speed }
+            val sideOnly = DesktopAudioSpeed(2, rate).apply { this.speed = speed }
+            val expected = ordinary.process(input, input.size).copyOf(ordinary.outputCount)
+            val actual = sideOnly.process(inverted, inverted.size).copyOf(sideOnly.outputCount)
+            assertEquals(expected.size, actual.size)
+            var worst = 0f
+            for (index in actual.indices step 2) {
+                worst = maxOf(worst, abs(actual[index] - expected[index]))
+                assertEquals(-actual[index], actual[index + 1], "Stereo phase must remain linked")
+            }
+            assertTrue(worst < 1e-5f, "Channel polarity changed the join decisions at $speed speed by $worst")
+        }
+    }
+
     @Test
     fun `unity speed passes the samples through untouched`() {
         val stretch = DesktopAudioSpeed(channels, rate)

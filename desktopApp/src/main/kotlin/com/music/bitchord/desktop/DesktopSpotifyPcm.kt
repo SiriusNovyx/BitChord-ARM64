@@ -5,7 +5,10 @@ import java.io.DataInputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
-internal class SpotifyPcmException(val code: Int = 0) : Exception("Spotify audio could not be decoded (code $code). Reconnect Spotify playback and try again.")
+internal class SpotifyPcmException(val code: Int = 0) : Exception(
+    if (code == 313) "Spotify has restricted this application (code 313). Playback stopped. Resolve the restriction with Spotify before retrying."
+    else "Spotify audio could not be decoded (code $code). Reconnect Spotify playback and try again."
+)
 internal class SpotifyPcmProtocol(private val input: InputStream) {
     private val stream = DataInputStream(input)
     private var ready = false

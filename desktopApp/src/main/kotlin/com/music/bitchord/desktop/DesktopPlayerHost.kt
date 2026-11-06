@@ -16,7 +16,9 @@ import com.music.bitchord.data.lyrics.LyricsTranslation
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.data.settings.AudioQuality
 import com.music.bitchord.data.settings.LastPlayerScreen
+import com.music.bitchord.data.settings.PlayerLayout
 import com.music.bitchord.data.settings.MixBlend
+import com.music.bitchord.data.settings.MixTransitionView
 import com.music.bitchord.data.settings.SmartAnalysis
 import com.music.bitchord.data.settings.TransitionWindow
 import com.music.bitchord.ui.player.AudioOutputDevice
@@ -95,6 +97,7 @@ internal object DesktopPlayerHost : PlayerHost {
         return remember(selected, devices) {
             val ids = listOf(DesktopAudioDevices.SYSTEM_DEFAULT) + devices.map { it.id }
             listed = ids
+            val active = activeDesktopOutputId(selected, ids)
             ids.mapIndexed { index, id ->
                 val name = if (id == DesktopAudioDevices.SYSTEM_DEFAULT) {
                     DesktopStrings["d_system_default", "System default"]
@@ -105,7 +108,7 @@ internal object DesktopPlayerHost : PlayerHost {
                     id = index,
                     name = name,
                     kind = kindOf(name),
-                    isActive = id == selected,
+                    isActive = id == active,
                 )
             }
         }
@@ -146,6 +149,7 @@ internal object DesktopPlayerHost : PlayerHost {
         when (val result = LyricsTranslation.translate(trackId, lines, targetLanguageTag)) {
             is LyricsTranslation.Result.Translated -> LyricsTranslationResult.Translated(result.lines)
             is LyricsTranslation.Result.SameLanguage -> LyricsTranslationResult.SameLanguage(result.language)
+            is LyricsTranslation.Result.RateLimited -> LyricsTranslationResult.RateLimited(result.retryAfterMillis, result.lines)
             LyricsTranslation.Result.Unavailable -> LyricsTranslationResult.Unavailable
         }
 
@@ -157,6 +161,7 @@ internal object DesktopPlayerHost : PlayerHost {
         when (val result = LyricsTranslation.romanize(trackId, lines, targetLanguageTag)) {
             is LyricsTranslation.RomanizationResult.Romanized -> LyricsRomanizationResult.Romanized(result.lines)
             LyricsTranslation.RomanizationResult.AlreadyRomanized -> LyricsRomanizationResult.AlreadyRomanized
+            is LyricsTranslation.RomanizationResult.RateLimited -> LyricsRomanizationResult.RateLimited(result.retryAfterMillis)
             LyricsTranslation.RomanizationResult.Unavailable -> LyricsRomanizationResult.Unavailable
         }
 
@@ -183,6 +188,13 @@ internal object DesktopPlayerHost : PlayerHost {
  */
 internal object DesktopPlayerSettings : PlayerSettingsSource {
     private val persistence by lazy { DesktopPersistence() }
+    private val layoutSetting = DesktopPlayerLayoutSetting(persistence)
+    override val playerLayout = layoutSetting.layout
+    fun setPlayerLayout(value: PlayerLayout) = layoutSetting.set(value)
+
+    private val outputPillSetting = DesktopOutputPillSetting(persistence)
+    override val showListenTogetherButton = outputPillSetting.shown
+    fun setShowListenTogetherButton(value: Boolean) = outputPillSetting.set(value)
 
     override val animatedCanvas = MutableStateFlow(true)
     override val audioQualityCellular = MutableStateFlow(AudioQuality.LOSSLESS)
@@ -190,7 +202,10 @@ internal object DesktopPlayerSettings : PlayerSettingsSource {
     override val canvasOverCellular = MutableStateFlow(true)
     override val fullBleedArtwork = MutableStateFlow(false)
     override val hideSongStatus = MutableStateFlow(false)
+    override val showQueueHistory = MutableStateFlow(false)
     override val hideVolumeBar = MutableStateFlow(false)
+    // A desktop window has no status bar to hide.
+    override val hideStatusBar = MutableStateFlow(false)
     override val lastPlayerScreen = MutableStateFlow(
         runCatching { LastPlayerScreen.valueOf(persistence.string(KEY_LAST_SCREEN, "MAIN")) }
             .getOrDefault(LastPlayerScreen.MAIN),
@@ -208,11 +223,15 @@ internal object DesktopPlayerSettings : PlayerSettingsSource {
     override val prioritizeSpotifyCanvas = MutableStateFlow(false)
     override val reduceAnimation = DesktopPerformance.reduceMotion
     override val reduceDynamicBlur = DesktopPerformance.reduceBlur
+    override val backgroundFramesPerSecond = DesktopPerformance.backgroundFramesPerSecond
     override val showNerdStats = MutableStateFlow(false)
     override val smartAnalysis = MutableStateFlow(SmartAnalysis())
+    override val automixDetail = MutableStateFlow<String?>(null)
     override val smartFadeEnabled = MutableStateFlow(false)
     override val smartMixInProgress = MutableStateFlow(false)
     override val smartMixBlend = MutableStateFlow<MixBlend?>(null)
+    override val smartMixView = MutableStateFlow<MixTransitionView?>(null)
+    override val smartMixProgress = MutableStateFlow(0f)
     override val smartTransitionWindow = MutableStateFlow<TransitionWindow?>(null)
     override val spotifyCanvasAutoHide = MutableStateFlow(true)
     override val syncedLyrics = MutableStateFlow(true)
@@ -260,8 +279,9 @@ private fun DesktopAudioPipeline.toOutputFormat(): OutputFormatUi {
         ?.let { "${"%.1f".format(Locale.ROOT, it / 1000f).removeSuffix(".0")} kHz" }
     return OutputFormatUi(
         summary = listOfNotNull(depth, rate).joinToString(" · "),
-        carriesHiRes = outputIsFloat == true || (outputBytesPerSample ?: 2) > 2 ||
-            (outputSampleRateHz ?: 0) > 48_000,
+        // WASAPI shared and Java Sound do not establish exclusive, unchanged output.
+        bitPerfect = false,
+        dacLimited = false,
     )
 }
 

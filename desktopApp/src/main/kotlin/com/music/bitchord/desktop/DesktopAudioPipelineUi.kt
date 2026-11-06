@@ -64,10 +64,12 @@ internal fun DesktopAudioPipelineDialog(
             PipelineStage(DesktopStrings["pipeline_resampler", "Resampler"]) {
                 PipelineRow(
                     DesktopStrings["pipeline_resampler", "Resampler"],
-                    if (pipeline.resampling) {
-                        "${pipeline.decodedSampleRateHz?.div(1000.0)} kHz → ${pipeline.outputSampleRateHz?.div(1000.0)} kHz"
-                    } else {
-                        DesktopStrings["d_bit_perfect", "Bit-perfect · no conversion"]
+                    when {
+                        (pipeline.decodedSampleRateHz ?: 0) <= 0 || (pipeline.outputSampleRateHz ?: 0) <= 0 ->
+                            DesktopStrings["pipeline_unknown", "Unknown"]
+                        pipeline.resampling ->
+                            "${pipeline.decodedSampleRateHz?.div(1000.0)} kHz → ${pipeline.outputSampleRateHz?.div(1000.0)} kHz"
+                        else -> DesktopStrings["pipeline_no_app_resampling", "No sample-rate conversion in app"]
                     },
                 )
             }
@@ -82,7 +84,8 @@ internal fun DesktopAudioPipelineDialog(
                 )
             }
             PipelineStage(DesktopStrings["pipeline_output_device", "Output"]) {
-                PipelineRow(DesktopStrings["pipeline_output_api", "Output API"], "javax.sound")
+                PipelineRow(DesktopStrings["pipeline_output_api", "Output API"],
+                    pipeline.outputApi?.takeIf { it.isNotBlank() } ?: DesktopStrings["pipeline_unknown", "Unknown"])
                 PipelineRow(DesktopStrings["pipeline_device_name", "Device"], pipeline.deviceName)
                 PipelineRow(
                     DesktopStrings["pipeline_pcm_format", "PCM format"],

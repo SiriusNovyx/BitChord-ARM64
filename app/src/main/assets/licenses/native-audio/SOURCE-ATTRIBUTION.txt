@@ -1,0 +1,557 @@
+=== native/loopmix/loop_mix_renderer.cpp ===
+// BitChord: the Automix loop mix's renderer. See loop_mix_renderer.h.
+//
+// Copyright (C) 2026 Kushagra Singh. GPL-3.0-or-later, with the rest of BitChord.
+
+=== native/loopmix/loop_mix_renderer.h ===
+// BitChord: the Automix loop mix's renderer. Two decks, each a decoded region
+// of one song played through Signalsmith Stretch, looped on whole bars and
+// following a tempo ramp beat by beat, mixed into one stereo stream.
+//
+// Everything is on one clock: mix frame 0 is the moment the outgoing song's
+// loop starts (t0). Each deck follows "knots" -- (time since t0, track
+// position) for every beat of the mix -- so its tempo changes on the beat and
+// its loop seams land on the exact sample. The renderer runs inside the
+// outgoing player's audio sink, so the start of the mix is sample-exact
+// against the song it takes over from, and the two decks can't drift apart.
+//
+// Copyright (C) 2026 Kushagra Singh. GPL-3.0-or-later, with the rest of BitChord.
+
+=== app/src/main/cpp/jni/loopmix_jni.cpp ===
+// JNI bridge for the Automix loop mix renderer (native/loopmix/). Every call
+// but render() is made while the mix is being set up; render() runs on the
+// player's playback thread, inside its audio sink.
+//
+// Copyright (C) 2026 Kushagra Singh. GPL-3.0-or-later, with the rest of BitChord.
+
+=== shared/src/commonMain/kotlin/com/music/bitchord/playback/smart/LoopMix.kt ===
+/*
+ * BitChord: the Automix loop mix, a DJ transition on two beat-tracked songs.
+ * Ported from the web player's playback/automix/engine/loopMix.ts (which
+ * builds on AutoMix by David Finnegan, AGPL-3.0; see that folder's NOTICE.md).
+ *
+ * Copyright (C) 2026 Kushagra Singh
+ *
+ * This program is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or (at your
+ * option) any later version. Combined into BitChord (GPL-3.0-or-later) under
+ * section 13 of the AGPL.
+ */
+
+=== shared/src/commonMain/kotlin/com/music/bitchord/playback/smart/TransitionPlanner.kt ===
+/*
+ * Ported from Orchard (https://github.com/SFG5453/Orchard), merging its
+ * TransitionPlanner.kt and WsolaPlanner.kt into one file.
+ *
+ * Copyright (C) 2026 SFG545 (original Orchard implementation)
+ * Copyright (C) 2026 Kushagra Singh (BitChord adaptation)
+ *
+ * Orchard's original source is licensed under the GNU Affero General Public
+ * License, version 3 or later. Per AGPLv3 section 13, this file is combined
+ * here into BitChord -- a work licensed under the GNU General Public
+ * License, version 3 or later -- and remains itself governed by the AGPLv3
+ * as part of that combination.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ */
+
+=== shared/src/commonMain/kotlin/com/music/bitchord/playback/smart/TrackAnalysis.kt ===
+/*
+ * Ported from Orchard (https://github.com/SFG5453/Orchard).
+ *
+ * Copyright (C) 2026 SFG545 (original Orchard implementation)
+ * Copyright (C) 2026 Kushagra Singh (BitChord adaptation)
+ *
+ * Orchard's original source is licensed under the GNU Affero General Public
+ * License, version 3 or later. Per AGPLv3 section 13, this file is combined
+ * here into BitChord -- a work licensed under the GNU General Public
+ * License, version 3 or later -- and remains itself governed by the AGPLv3
+ * as part of that combination.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ */
+
+=== shared/src/commonMain/kotlin/com/music/bitchord/playback/smart/TransitionPolicy.kt ===
+/*
+ * Ported from Orchard (https://github.com/SFG5453/Orchard).
+ *
+ * Copyright (C) 2026 SFG545 (original Orchard implementation)
+ * Copyright (C) 2026 Kushagra Singh (BitChord adaptation)
+ *
+ * Orchard's original source is licensed under the GNU Affero General Public
+ * License, version 3 or later. Per AGPLv3 section 13, this file is combined
+ * here into BitChord -- a work licensed under the GNU General Public
+ * License, version 3 or later -- and remains itself governed by the AGPLv3
+ * as part of that combination.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ */
+
+=== shared/src/jvmSharedMain/kotlin/com/music/bitchord/playback/smart/BeatTracker.kt ===
+/*
+ * Ported from Orchard (https://github.com/SFG5453/Orchard).
+ *
+ * Copyright (C) 2026 SFG545 (original Orchard implementation)
+ * Copyright (C) 2026 Kushagra Singh (BitChord adaptation)
+ *
+ * Orchard's original source is licensed under the GNU Affero General Public
+ * License, version 3 or later. Per AGPLv3 section 13, this file is combined
+ * here into BitChord -- a work licensed under the GNU General Public
+ * License, version 3 or later -- and remains itself governed by the AGPLv3
+ * as part of that combination.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ */
+
+=== shared/src/jvmSharedMain/kotlin/com/music/bitchord/playback/smart/VocalTracker.kt ===
+/*
+ * Ported from Orchard (https://github.com/SFG5453/Orchard).
+ *
+ * Copyright (C) 2026 SFG545 (original Orchard implementation)
+ * Copyright (C) 2026 Kushagra Singh (BitChord adaptation)
+ *
+ * Orchard's original source is licensed under the GNU Affero General Public
+ * License, version 3 or later. Per AGPLv3 section 13, this file is combined
+ * here into BitChord -- a work licensed under the GNU General Public
+ * License, version 3 or later -- and remains itself governed by the AGPLv3
+ * as part of that combination.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ */
+
+=== app/src/main/cpp/bitperfect/exclusive_output.cpp ===
+/*
+ * Copyright (C) 2026 BitChord Project
+ *
+ * Adapted from Mornye (https://github.com/mornyeapp/Mornye),
+ * android/app/src/main/cpp/native_audio.cpp (ExclusiveOutput),
+ * Copyright 2026 zarzet.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ */
+
+// Exact-rate PCM through an AAudio exclusive stream (Oboe), for players with
+// a built-in DAC. Exclusive is only a request: Android may grant a shared
+// stream instead, and a shared stream is mixed. The stream is accepted only
+// when the API, sharing mode, rate, channel count and format all came back
+// exactly as asked; otherwise it is closed and the caller uses normal output.
+
+=== app/src/main/cpp/bitperfect/usb_transport.cpp ===
+/*
+ * Copyright (C) 2026 BitChord Project
+ *
+ * Adapted from Mornye (https://github.com/mornyeapp/Mornye),
+ * rust_backend/crates/mobile/src/usb_audio/transport.rs,
+ * Copyright 2026 zarzet.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ */
+
+// A mixer-free USB Audio Class output: Android grants permission and opens
+// the device; one worker thread here owns libusb, the claimed interfaces,
+// four isochronous OUT transfers and the explicit feedback transfer. No
+// resampling or gain happens anywhere below the queue.
+//
+// Every raw libusb pointer belongs to the worker. Transfer buffers keep
+// stable addresses until libusb acknowledges completion or cancellation,
+// including on detach and error paths, before any memory is freed. Class
+// control requests (the DAC's volume) are queued to the same worker rather
+// than issued from another thread.
+//
+// Descriptor parsing and the choice of alternate setting happen in Kotlin
+// (UsbDescriptors.kt); this side is handed the candidates in preference order
+// and opens the first one the device accepts.
+
+=== app/src/main/cpp/bitperfect/usb_stream.h ===
+/*
+ * Copyright (C) 2026 BitChord Project
+ *
+ * Adapted from Mornye (https://github.com/mornyeapp/Mornye),
+ * rust_backend/crates/mobile/src/usb_audio/{descriptors.rs (PacketClock), framing.rs},
+ * Copyright 2026 zarzet.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ */
+
+=== app/src/main/cpp/dsd/dst/decoder.c ===
+/*
+ * Direct Stream Transfer (DST) decoder
+ * Copyright (c) 2014 Peter Ross <pross@xvid.org>
+ *
+ * This file is part of FFmpeg.
+ *
+ * FFmpeg is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * FFmpeg is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with FFmpeg; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ */
+
+/**
+ * @file decoder.c
+ * @brief DST decoder - single-frame public API and core decoding algorithm
+ *
+ * ISO/IEC 14496-3 Part 3 Subpart 10: Technical description of lossless
+ * coding of oversampled audio
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ */
+
+=== app/src/main/java/com/music/bitchord/playback/audio/bitperfect/BitPerfectPcm.kt ===
+/*
+ * Copyright (C) 2026 BitChord Project
+ *
+ * Adapted from Mornye (https://github.com/mornyeapp/Mornye),
+ * android/app/src/main/kotlin/com/zarz/mornye/BitPerfectPcm.kt,
+ * Copyright 2026 zarzet.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ */
+
+=== app/src/main/java/com/music/bitchord/playback/audio/bitperfect/ExclusiveTransport.kt ===
+/*
+ * Copyright (C) 2026 BitChord Project
+ *
+ * Adapted from Mornye (https://github.com/mornyeapp/Mornye),
+ * android/app/src/main/kotlin/com/zarz/mornye/HiResPlayback.kt and NativeAudio.kt,
+ * Copyright 2026 zarzet.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ */
+
+=== app/src/main/java/com/music/bitchord/playback/audio/bitperfect/MixerTransport.kt ===
+/*
+ * Copyright (C) 2026 BitChord Project
+ *
+ * Adapted from Mornye (https://github.com/mornyeapp/Mornye),
+ * android/app/src/main/kotlin/com/zarz/mornye/UsbBitPerfectPlugin.kt (UsbPcmPlayback),
+ * Copyright 2026 zarzet.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ */
+
+=== app/src/main/java/com/music/bitchord/playback/audio/bitperfect/usb/UsbDescriptors.kt ===
+/*
+ * Copyright (C) 2026 BitChord Project
+ *
+ * Adapted from Mornye (https://github.com/mornyeapp/Mornye),
+ * rust_backend/crates/mobile/src/usb_audio/descriptors.rs,
+ * Copyright 2026 zarzet.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ */
+
+=== app/src/main/java/com/music/bitchord/playback/audio/bitperfect/usb/UsbDirectDevices.kt ===
+/*
+ * Copyright (C) 2026 BitChord Project
+ *
+ * Adapted in part from Mornye (https://github.com/mornyeapp/Mornye),
+ * android/app/src/main/kotlin/com/zarz/mornye/UsbDirectPlayback.kt,
+ * Copyright 2026 zarzet.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ */
+
+=== app/src/main/java/com/music/bitchord/playback/audio/bitperfect/usb/UsbDirectTransport.kt ===
+/*
+ * Copyright (C) 2026 BitChord Project
+ *
+ * Adapted from Mornye (https://github.com/mornyeapp/Mornye),
+ * android/app/src/main/kotlin/com/zarz/mornye/UsbDirectPlayback.kt,
+ * Copyright 2026 zarzet.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ */
+
+=== app/src/main/java/com/music/bitchord/playback/audio/bitperfect/usb/UsbVolume.kt ===
+/*
+ * Copyright (C) 2026 BitChord Project
+ *
+ * Adapted from Mornye (https://github.com/mornyeapp/Mornye),
+ * rust_backend/crates/mobile/src/usb_audio/volume.rs,
+ * Copyright 2026 zarzet.
+ *
+ * SPDX-License-Identifier: LGPL-3.0-only
+ */
+
+=== Oboe 1.11.0 source: include/oboe/Oboe.h ===
+/*
+ * Copyright (C) 2016 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+=== libusb 1.0.27 source: libusb/core.c ===
+/* -*- Mode: C; indent-tabs-mode:t ; c-basic-offset:8 -*- */
+/*
+ * Core functions for libusb
+ * Copyright © 2012-2023 Nathan Hjelm <hjelmn@cs.unm.edu>
+ * Copyright © 2007-2008 Daniel Drake <dsd@gentoo.org>
+ * Copyright © 2001 Johannes Erdfelt <johannes@erdfelt.com>
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ */
+
+=== libusb 1.0.27 source: libusb/descriptor.c ===
+/* -*- Mode: C; indent-tabs-mode:t ; c-basic-offset:8 -*- */
+/*
+ * USB descriptor handling functions for libusb
+ * Copyright © 2007 Daniel Drake <dsd@gentoo.org>
+ * Copyright © 2001 Johannes Erdfelt <johannes@erdfelt.com>
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ */
+
+=== libusb 1.0.27 source: libusb/hotplug.c ===
+/* -*- Mode: C; indent-tabs-mode:t ; c-basic-offset:8 -*- */
+/*
+ * Hotplug functions for libusb
+ * Copyright © 2012-2021 Nathan Hjelm <hjelmn@mac.com>
+ * Copyright © 2012-2013 Peter Stuge <peter@stuge.se>
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ */
+
+=== libusb 1.0.27 source: libusb/io.c ===
+/* -*- Mode: C; indent-tabs-mode:t ; c-basic-offset:8 -*- */
+/*
+ * I/O functions for libusb
+ * Copyright © 2007-2009 Daniel Drake <dsd@gentoo.org>
+ * Copyright © 2001 Johannes Erdfelt <johannes@erdfelt.com>
+ * Copyright © 2019-2022 Nathan Hjelm <hjelmn@cs.unm.edu>
+ * Copyright © 2019-2022 Google LLC. All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ */
+
+=== libusb 1.0.27 source: libusb/sync.c ===
+/* -*- Mode: C; indent-tabs-mode:t ; c-basic-offset:8 -*- */
+/*
+ * Synchronous I/O functions for libusb
+ * Copyright © 2007-2008 Daniel Drake <dsd@gentoo.org>
+ * Copyright © 2019 Nathan Hjelm <hjelmn@cs.unm.edu>
+ * Copyright © 2019 Google LLC. All rights reserved.
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ */
+
+=== libusb 1.0.27 source: libusb/strerror.c ===
+/*
+ * libusb strerror code
+ * Copyright © 2013 Hans de Goede <hdegoede@redhat.com>
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ */
+
+=== libusb 1.0.27 source: libusb/os/linux_usbfs.c ===
+/* -*- Mode: C; c-basic-offset:8 ; indent-tabs-mode:t -*- */
+/*
+ * Linux usbfs backend for libusb
+ * Copyright © 2007-2009 Daniel Drake <dsd@gentoo.org>
+ * Copyright © 2001 Johannes Erdfelt <johannes@erdfelt.com>
+ * Copyright © 2013 Nathan Hjelm <hjelmn@mac.com>
+ * Copyright © 2012-2013 Hans de Goede <hdegoede@redhat.com>
+ * Copyright © 2020 Chris Dickens <christopher.a.dickens@gmail.com>
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ */
+
+=== libusb 1.0.27 source: libusb/os/events_posix.c ===
+/*
+ * libusb event abstraction on POSIX platforms
+ *
+ * Copyright © 2020 Chris Dickens <christopher.a.dickens@gmail.com>
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ */
+
+=== libusb 1.0.27 source: libusb/os/threads_posix.c ===
+/*
+ * libusb synchronization using POSIX Threads
+ *
+ * Copyright © 2011 Vitali Lovich <vlovich@aliph.com>
+ * Copyright © 2011 Peter Stuge <peter@stuge.se>
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ */
+
+=== libusb 1.0.27 source: libusb/os/linux_netlink.c ===
+/* -*- Mode: C; c-basic-offset:8 ; indent-tabs-mode:t -*- */
+/*
+ * Linux usbfs backend for libusb
+ * Copyright (C) 2007-2009 Daniel Drake <dsd@gentoo.org>
+ * Copyright (c) 2001 Johannes Erdfelt <johannes@erdfelt.com>
+ * Copyright (c) 2013 Nathan Hjelm <hjelmn@mac.com>
+ * Copyright (c) 2016 Chris Dickens <christopher.a.dickens@gmail.com>
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ */

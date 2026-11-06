@@ -6,6 +6,9 @@ import com.music.bitchord.data.sources.DeviceCodecs
 import com.music.bitchord.data.sources.SourceConfig
 import com.music.bitchord.data.sources.SourceHealth
 import com.music.bitchord.data.sources.SourceKind
+import com.music.bitchord.data.sources.SourceRegistry
+import com.music.bitchord.data.sources.SourceResolver
+import com.music.bitchord.data.sources.TrackMatcher
 import com.music.bitchord.data.sources.StreamRequest
 import com.music.bitchord.data.sources.addon.AddonClient
 import com.music.bitchord.playback.StreamContainer
@@ -34,6 +37,55 @@ import org.junit.Test
  * response. So the server is real, and the only thing mocked is what it says.
  */
 class AddonSourceTest {
+    @Test
+    fun `cached row url cannot override a later provider refusal`() = runBlocking {
+        route("/manifest.json", manifest())
+        route("/search", json("""{"tracks":[{"id":"cached","title":"Exact Song","artist":"Exact Artist",
+            "duration":120,"streamURL":"https://cdn.example.invalid/cached.m4a"}]}"""))
+        for (status in listOf(401, 403, 503)) {
+            val source = source()
+            try {
+                assertEquals(1, source.search("Exact Song").size)
+                route("/stream/cached", MockResponse().setResponseCode(status))
+                assertNull("HTTP $status must not return a cached URL", source.stream("cached", StreamRequest.Best))
+                assertFalse("The refused provider must be unavailable", SourceRegistry.canAttempt(source.config.id))
+            } finally {
+                SourceRegistry.recordHealth(source.config.id, SourceHealth.Ok())
+            }
+        }
+    }
+
+    @Test
+    fun `search auth failure blocks later tracks until recovery`() = runBlocking {
+        providerFailureIsGated(401)
+    }
+
+    @Test
+    fun `search outage blocks later tracks until recovery`() = runBlocking {
+        providerFailureIsGated(503)
+    }
+
+    private suspend fun providerFailureIsGated(status: Int) {
+        val config = config()
+        val source = AddonSource(config)
+        route("/manifest.json", manifest())
+        route("/search", MockResponse().setResponseCode(status))
+        try {
+            val target = TrackMatcher.Target("Exact Song", "Exact Artist", durationSec = 120)
+            assertNull(SourceResolver.orderedAcross(listOf(source), target, StreamRequest.Best))
+            val first = seen.count { it.requestUrl?.encodedPath == "/search" }
+            assertEquals("A provider failure must stop query variants", 1, first)
+            assertNull(SourceResolver.orderedAcross(listOf(source), target.copy(title = "Second Song"), StreamRequest.Best))
+            assertEquals(first, seen.count { it.requestUrl?.encodedPath == "/search" })
+            SourceRegistry.recordHealth(config.id, SourceHealth.Ok())
+            source.clearCompletedTrackCalls()
+            route("/search", json("""{"tracks":[]}"""))
+            assertTrue(source.search("Recovered").isEmpty())
+            assertEquals(first + 1, seen.count { it.requestUrl?.encodedPath == "/search" })
+        } finally {
+            SourceRegistry.recordHealth(config.id, SourceHealth.Ok())
+        }
+    }
 
     private lateinit var server: MockWebServer
 
@@ -462,11 +514,8 @@ class AddonSourceTest {
      * the hint goes out, the DASH answer comes back, and every field that
      * identifies it as immersive is one this app reads.
      *
-     * Note what is *not* in `AUDIO_CODECS`: the underscore spelling
-     * `eac3_joc`. Adding it there would have `formatOf` return it verbatim,
-     * which then misses the hyphenated `DOLBY_ATMOS_CODECS` and silently
-     * breaks [StreamFormat.isDolbyAtmos]. The free-text fallback is the
-     * correct path, and this is what locks it.
+     * The explicitly stated `eac3_joc` codec is normalized to `eac3-joc`.
+     * A free-text Atmos declaration alone does not establish that codec.
      */
     @Test
     fun `asking for atmos gets an immersive answer the player is told how to open`() = runBlocking {
@@ -896,6 +945,38 @@ class AddonSourceTest {
      * track, so a device that cannot decode it has to refuse here — there is no
      * lower-ranked sibling for the resolver to fall to.
      */
+    @Test
+    fun `plain DD plus stays DD plus without an Atmos claim`() = runBlocking {
+        route("/manifest.json", manifest())
+        route("/stream/t1", json("""{"url":"https://cdn/a.mp4","codec":"eac3","quality":"Dolby Digital Plus"}"""))
+        val stream = AddonSource(config()).stream("t1", StreamRequest.Lossless)!!
+        assertEquals("eac3", stream.format.codec)
+        assertFalse(stream.format.isDolbyAtmos)
+    }
+
+    @Test
+    fun `plain DD plus is refused without its decoder but does not require the Atmos preference`() = runBlocking {
+        route("/manifest.json", manifest())
+        route("/stream/t1", json("""{"url":"https://cdn/a.mp4","codec":"eac3","quality":"Dolby Digital Plus"}"""))
+        DeviceCodecs.forced = false
+        assertNull(AddonSource(config()).stream("t1", StreamRequest.Lossless))
+        DeviceCodecs.forced = true
+        AppSettings.dolbyAtmos.value = false
+        val stream = AddonSource(config()).stream("t1", StreamRequest.Lossless)!!
+        assertEquals("eac3", stream.format.codec)
+        assertFalse(stream.format.isDolbyAtmos)
+    }
+
+    @Test
+    fun `an Atmos label is a declaration rather than an observed JOC codec`() = runBlocking {
+        route("/manifest.json", manifest())
+        route("/stream/t1", json("""{"url":"https://cdn/extensionless","quality":"Dolby Atmos"}"""))
+        val stream = AddonSource(config()).stream("t1", StreamRequest.Lossless)!!
+        assertNull(stream.format.codec)
+        assertTrue(stream.format.sourceDeclaredAtmos == true)
+        assertTrue(stream.format.isDolbyAtmos)
+    }
+
     @Test
     fun `an Atmos rendition is refused on a device that cannot decode it`() = runBlocking {
         DeviceCodecs.forced = false

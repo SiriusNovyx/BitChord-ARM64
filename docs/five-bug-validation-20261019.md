@@ -1,3 +1,5 @@
+> Historical baseline: validation and measurements below predate the comprehensive v1.8.1 integration. See [the current integration record](upstream-v181-integration.md) for current source, packages and verification status. Earlier selective-import policy is superseded.
+
 # Five bug fixes and selective upstream integration
 
 ## Scope

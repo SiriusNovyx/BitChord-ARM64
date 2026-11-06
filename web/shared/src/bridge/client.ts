@@ -91,7 +91,12 @@ function withDeadline<T>(
     const onAbort = () => finish({ error: options?.signal?.reason ?? new DOMException('Aborted', 'AbortError') });
     if (options?.signal?.aborted) return onAbort();
     options?.signal?.addEventListener('abort', onAbort, { once: true });
-    cleanup = start(finish);
+    try {
+      cleanup = start(finish);
+      if (done) cleanup();
+    } catch (error) {
+      finish({ error });
+    }
   });
 }
 
@@ -213,8 +218,14 @@ export function relayBridge(target: Window = window): Bridge {
           }
         };
         target.addEventListener('message', onMessage);
-        target.postMessage(request, target.location.origin);
-        return () => target.removeEventListener('message', onMessage);
+        const cleanup = () => target.removeEventListener('message', onMessage);
+        try {
+          target.postMessage(request, target.location.origin);
+        } catch (error) {
+          cleanup();
+          throw error;
+        }
+        return cleanup;
       });
     },
     subscribe(listener) {

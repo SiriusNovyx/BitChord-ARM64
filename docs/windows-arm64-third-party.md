@@ -1,7 +1,8 @@
 # Windows ARM64 native components
 
-BitChord remains GPLv3. Its portable package includes the project license and
-component notices; dependency JARs retain their own metadata and license files.
+BitChord includes GPLv3 and AGPLv3 components with their original source headers.
+Its portable package includes the project license and component notices;
+dependency JARs retain their own metadata and license files.
 The ARM64 native dependency preparation scripts preserve upstream inputs and
 record binary hashes rather than changing architecture labels.
 
@@ -15,6 +16,10 @@ record binary hashes rather than changing architecture labels.
 | ONNX Runtime | v1.29.0 commit `2e2543fbe9fae542f921d47a72d21d5a4ef0b710`, MSVC ARM64 Java/shared build | MIT and upstream ThirdPartyNotices. <https://github.com/microsoft/onnxruntime/tree/v1.29.0> |
 | QuickJS JNI | quickjs-kt v1.0.14 commit `6e51ae878be54f22272381e62118535790ba9940` with its exact engine/c-vector submodules | Apache-2.0 wrapper, MIT QuickJS/c-vector and winpthreads notices. Compiled with LLVM-MinGW 20261006 UCRT ARM64, statically linked pthread support. <https://github.com/dokar3/quickjs-kt/tree/v1.0.14> |
 | Browser host | Microsoft.Web.WebView2 SDK 1.0.4258.31 static ARM64 loader | SDK LICENSE.txt and NOTICE.txt in `licenses/webview2/`. The Edge WebView2 Runtime is a separately installed prerequisite; it is not redistributed in this ZIP. <https://www.nuget.org/packages/Microsoft.Web.WebView2/1.0.4258.31> |
+| Native LoopMix renderer/JNI | Repository `native/loopmix` and `app/src/main/cpp/jni/loopmix_jni.cpp`, compiled as `bitchord_loopmix.dll` | GPL-3.0-or-later source headers; Desktop boundary and deck setup retain provenance in `licenses/Native-LoopMix-NOTICE.txt`. |
+| Shared LoopMix and analysis policies | Repository `shared` sources with original BitChord/Orchard/AutoMix attribution | AGPL-3.0-or-later components retain their headers; AutoMix attribution and AGPL text travel in `licenses/automix/`. The exact integration's corresponding-source/distribution review remains required. |
+| Signalsmith Stretch | Repository `native/third_party/signalsmith-stretch` | MIT, Copyright (c) 2022 Geraint Luff / Signalsmith Audio Ltd.; exact bundled text in `licenses/signalsmith/stretch/LICENSE.txt`. |
+| Signalsmith Linear | Repository `native/third_party/signalsmith-linear` | MIT, Copyright (c) 2025 Signalsmith Audio; exact bundled text in `licenses/signalsmith/linear/LICENSE.txt`. |
 
 Keep the native source revisions, build scripts, generated JNI sources and
 corresponding component source available when distributing a release. This

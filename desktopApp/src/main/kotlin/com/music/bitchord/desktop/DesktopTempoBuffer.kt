@@ -13,6 +13,12 @@ internal class DesktopTempoBuffer(channels: Int, sampleRate: Int) {
     private var queuedStart = 0
     private var queuedCount = 0
     private var output = FloatArray(0)
+    private class RateSpan(var samples: Int, val rate: Double)
+    private val rates = java.util.ArrayDeque<RateSpan>()
+
+    /** Weighted source-time rate of the samples returned by the last [take]. */
+    var outputRate: Double = 1.0
+        private set
 
     var speed: Float
         get() = processor.speed
@@ -25,7 +31,7 @@ internal class DesktopTempoBuffer(channels: Int, sampleRate: Int) {
     fun push(samples: FloatArray, count: Int) {
         if (count <= 0) return
         val rendered = processor.process(samples, count)
-        append(rendered, processor.outputCount)
+        append(rendered, processor.outputCount, processor.outputRate.toDouble())
     }
 
     /**
@@ -35,7 +41,7 @@ internal class DesktopTempoBuffer(channels: Int, sampleRate: Int) {
      */
     fun finish() {
         val rest = processor.drain()
-        append(rest, processor.outputCount)
+        append(rest, processor.outputCount, 1.0)
     }
 
     /** Returns up to [wanted] queued samples. The returned array is reused. */
@@ -43,6 +49,17 @@ internal class DesktopTempoBuffer(channels: Int, sampleRate: Int) {
         val count = minOf(wanted, queuedCount)
         if (output.size < count) output = FloatArray(count)
         if (count > 0) System.arraycopy(queued, queuedStart, output, 0, count)
+        var left = count
+        var sourceSamples = 0.0
+        while (left > 0) {
+            val span = rates.first
+            val consumed = minOf(left, span.samples)
+            sourceSamples += consumed * span.rate
+            span.samples -= consumed
+            left -= consumed
+            if (span.samples == 0) rates.removeFirst()
+        }
+        outputRate = if (count > 0) sourceSamples / count else 1.0
         queuedStart += count
         queuedCount -= count
         if (queuedCount == 0) queuedStart = 0
@@ -53,7 +70,7 @@ internal class DesktopTempoBuffer(channels: Int, sampleRate: Int) {
     var outputCount: Int = 0
         private set
 
-    private fun append(samples: FloatArray, count: Int) {
+    private fun append(samples: FloatArray, count: Int, rate: Double) {
         if (count <= 0) return
         val needed = queuedCount + count
         if (queuedStart + needed > queued.size) {
@@ -64,5 +81,8 @@ internal class DesktopTempoBuffer(channels: Int, sampleRate: Int) {
         }
         System.arraycopy(samples, 0, queued, queuedStart + queuedCount, count)
         queuedCount += count
+        val previous = rates.peekLast()
+        if (previous?.rate == rate) previous.samples += count
+        else rates.addLast(RateSpan(count, rate))
     }
 }

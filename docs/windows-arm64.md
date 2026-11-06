@@ -167,7 +167,7 @@ verification status in `spotify-desktop-design.md` before distributing it.
 ## Verify and compare
 
 ```powershell
-rtk proxy .\gradlew.bat :desktopApp:test :shared:jvmTest :sharedUi:jvmTest '-Pbitchord.arch=arm64' "-Pbitchord.webview2Sdk=$sdk" "-Pbitchord.cmake=$cmake"
+rtk proxy .\gradlew.bat :desktopApp:test :shared:jvmTest :sharedUi:jvmTest :desktopUi:jvmTest '-Pbitchord.arch=arm64' "-Pbitchord.webview2Sdk=$sdk" "-Pbitchord.cmake=$cmake"
 rtk proxy python desktopApp/packaging/verify_windows.py --arch arm64 --runtime desktopApp/build/windows-portable/arm64/BitChord/runtime
 rtk proxy python -m unittest discover -s desktopApp/packaging -p 'test_*.py'
 rtk proxy $cmake --fresh -S desktopApp/native/window -B .work/window-tests-arm64 -G 'Visual Studio 18 2026' -A ARM64 -DBITCHORD_TARGET_ARCH=arm64 -DBITCHORD_BUILD_WINDOW_TESTS=ON -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
@@ -198,6 +198,8 @@ rather than being reported as zero. Summary/collection regression checks cover
 engine grouping, duplicates, fractional values, missing data and partial errors.
 
 For direct battery-driver readings, build the optional measurement helper:
+
+Rebuild it from the same current checkout as the collector. The current JSON schema includes an explicit `shortTerm` flag; an older cached executable without that field deliberately leaves normalized rate fields unknown. Keep raw capability/status/rate records when diagnosing a schema mismatch, rather than treating null rates as zero consumption.
 
 ```powershell
 rtk proxy powershell -NoProfile -File desktopApp/packaging/Build-DesktopBatteryProbe.ps1 -Architecture arm64 -Cmake $cmake

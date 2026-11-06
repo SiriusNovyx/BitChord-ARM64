@@ -49,6 +49,15 @@ internal object DesktopTransitionRide {
 
     fun echoAt(plan: TransitionPlan): Float = onBar(plan, FILTER_ECHO_AT).toFloat()
 
+    /** The low-end transfer used by [aim], rather than the display handoff. */
+    fun bassSwapAt(plan: TransitionPlan): Float = when {
+        plan.transitionStyle == TransitionStyle.DJ_BLEND && plan.bassSwap ->
+            onBeat(plan, plan.bassSwapFraction).toFloat()
+        plan.transitionStyle == TransitionStyle.DJ_FILTER && plan.filterVariant == FilterTransitionVariant.BASS_HANDOFF ->
+            filterSwapAt(plan).toFloat()
+        else -> -1f
+    }
+
     fun handoffAt(plan: TransitionPlan): Float =
         if (plan.transitionStyle == TransitionStyle.DJ_BLEND && plan.bassSwap) {
             onBeat(plan, plan.bassSwapFraction).toFloat()

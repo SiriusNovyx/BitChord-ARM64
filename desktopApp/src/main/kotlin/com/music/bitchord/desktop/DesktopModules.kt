@@ -370,7 +370,7 @@ private class DesktopModuleManager {
         runCatching {
             cachedIndex?.takeIf { it.first == indexUrl }?.second?.let { return@runCatching it }
             val response = DesktopModuleHttp.get(indexUrl)
-            check(response.status in 200..299) { "Module index returned HTTP ${response.status}" }
+            if (response.status !in 200..299) throw DesktopSourceHttpException(response.status)
             val modules = parseIndex(response.body)
             cachedIndex = indexUrl to modules
             modules
@@ -398,7 +398,7 @@ private class DesktopModuleManager {
                 engines[key]?.let { return@runCatching it }
                 val downloadUrl = URI.create(indexUrl).resolve(module.download).toString()
                 val response = DesktopModuleHttp.get(downloadUrl)
-                check(response.status in 200..299) { "Module ${module.id} returned HTTP ${response.status}" }
+                if (response.status !in 200..299) throw DesktopSourceHttpException(response.status)
                 val engine = DesktopModuleEngine(response.body, URI.create(downloadUrl).resolve(".").toString())
                 engines[key] = engine
                 locks.putIfAbsent(key, Mutex())
@@ -534,7 +534,7 @@ internal object DesktopModuleSource {
     suspend fun matches(config: DesktopSourceConfig, song: Song): List<Song> {
         if (!configured(config) || song.title.isBlank() || song.isVideo) return emptyList()
         val indexUrl = config.baseUrl.trim().takeIf(String::isNotBlank) ?: return emptyList()
-        val modules = manager.modules(indexUrl).getOrDefault(emptyList())
+        val modules = manager.modules(indexUrl).getOrThrow()
         for (query in DesktopTrackMatcher.queries(song)) {
             // Preserve the configured index order.
             for (module in modules) {

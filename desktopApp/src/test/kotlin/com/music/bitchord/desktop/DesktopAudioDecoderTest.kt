@@ -74,6 +74,19 @@ class DesktopAudioDecoderTest {
     }
 
     @Test
+    fun `playback keeps the source clock when the requested rate differs`() {
+        val file = tone(seconds = 1.0, rate = 48_000, hz = 220.0)
+        val decoder = DesktopAudioDecoder()
+        decoder.open(file.absolutePath, requested = DesktopPcmFormat(44_100, 2, 2)).getOrThrow()
+        try {
+            assertEquals(48_000, decoder.outputFormat.sampleRate)
+            assertEquals(48_000 * 4, decoder.readAll().size)
+        } finally {
+            decoder.close()
+        }
+    }
+
+    @Test
     fun `seeking lands where it was asked to`() {
         val file = tone(seconds = 4.0, rate = 44_100, hz = 440.0)
         val decoder = DesktopAudioDecoder()

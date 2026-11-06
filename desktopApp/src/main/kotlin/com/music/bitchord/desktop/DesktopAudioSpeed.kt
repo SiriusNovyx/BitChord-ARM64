@@ -36,6 +36,14 @@ internal class DesktopAudioSpeed(
     var outputCount: Int = 0
         private set
 
+    /** Nominal source-time rate of the last output, which can differ from the next request. */
+    var outputRate: Float = 1f
+        private set
+
+    /** Source continuation still held after the last emitted window, in this processor's input clock. */
+    val bufferedInputFrames: Int get() = if (!engaged) 0 else
+        (pendingFrames - if (hasTail) lastJoin + hop else readFrom).coerceAtLeast(0)
+
     /** Stretches [count] interleaved samples. */
     fun process(input: FloatArray, count: Int): FloatArray {
         val rate = speed
@@ -47,6 +55,7 @@ internal class DesktopAudioSpeed(
             return input
         }
         engaged = true
+        outputRate = rate
 
         append(input, count)
         val advance = (hop * rate).roundToInt().coerceAtLeast(1)
@@ -145,14 +154,14 @@ internal class DesktopAudioSpeed(
         // Every fourth frame: the correlation surface is smooth at audio rates, and the peak does
         // not move for the sampling.
         while (frame < hop) {
-            var t = 0f
-            var p = 0f
             for (channel in 0 until channels) {
-                t += tail[frame * channels + channel]
-                p += pending[(start + frame) * channels + channel]
+                val t = tail[frame * channels + channel]
+                val p = pending[(start + frame) * channels + channel]
+                // Score channel pairs before summing. A mono fold-down would erase
+                // side-only material and make every candidate join look equally good.
+                dot += t * p
+                energy += p * p
             }
-            dot += t * p
-            energy += p * p
             frame += 4
         }
         return dot / kotlin.math.sqrt(energy + 1e-9f)
@@ -186,6 +195,7 @@ internal class DesktopAudioSpeed(
         lastJoin = 0
         lastOffset = 0
         outputCount = 0
+        outputRate = 1f
     }
 
     private companion object {

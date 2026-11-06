@@ -1,0 +1,172 @@
+{
+  "schema": 1,
+  "scope": "Model family attribution, exact original notices and local artifact fingerprints; not a certification of ONNX export lineage or distribution readiness.",
+  "exact_onnx_export_lineage_verified": false,
+  "license_texts": [
+    {
+      "path": "Beat-This-MIT.txt",
+      "license": "MIT",
+      "bytes": 1113,
+      "sha256": "909ab6549794a18e9bb243aacfadda4a5f308436fc2846f350755c53c4f06ae1",
+      "origin": {
+        "repository": "CPJKU/beat_this",
+        "ref": "b95c8ab0c58c2d9fcfd40508ae8dffbc05ac4f5c",
+        "path": "LICENSE",
+        "git_blob_sha1": "741094027c09a66d7d06c45d62e5dac33a7317ad",
+        "bytes": 1113,
+        "url": "https://github.com/CPJKU/beat_this/blob/b95c8ab0c58c2d9fcfd40508ae8dffbc05ac4f5c/LICENSE"
+      }
+    },
+    {
+      "path": "Open-Unmix-MIT.txt",
+      "license": "MIT",
+      "bytes": 1103,
+      "sha256": "4f7b047ffafb9fbb39a40d605bab961b9b030711addce6e9d23886c2ae3b105e",
+      "origin": {
+        "repository": "sigsep/open-unmix-pytorch",
+        "ref": "fb672c9584997c2b05e148eeaa65b4c23ed4693b",
+        "path": "LICENSE",
+        "git_blob_sha1": "4267b01da7a50980c2ce7393245000e283d3ab7d",
+        "bytes": 1103,
+        "url": "https://github.com/sigsep/open-unmix-pytorch/blob/fb672c9584997c2b05e148eeaa65b4c23ed4693b/LICENSE"
+      }
+    }
+  ],
+  "family_license_evidence": [
+    {
+      "family": "beat-this",
+      "publisher": "Institute of Computational Perception, JKU Linz",
+      "published_code_and_weights_license": "MIT",
+      "primary_readme": {
+        "repository": "CPJKU/beat_this",
+        "ref": "b95c8ab0c58c2d9fcfd40508ae8dffbc05ac4f5c",
+        "path": "README.md",
+        "git_blob_sha1": "955931cf33881364dc0fa27e30825d1c83d25adb",
+        "bytes": 17037,
+        "url": "https://github.com/CPJKU/beat_this/blob/b95c8ab0c58c2d9fcfd40508ae8dffbc05ac4f5c/README.md"
+      },
+      "limitation": "Publisher terms establish the published model family license, not the checkpoint identity or conversion of these local ONNX files."
+    },
+    {
+      "family": "umx-hq",
+      "publisher": "Inria / SigSep",
+      "published_checkpoint_license": "mit-license",
+      "primary_readme": {
+        "repository": "sigsep/open-unmix-pytorch",
+        "ref": "fb672c9584997c2b05e148eeaa65b4c23ed4693b",
+        "path": "README.md",
+        "git_blob_sha1": "406947dc144e009427e1806f86ebe015e27be92b",
+        "bytes": 15811,
+        "url": "https://github.com/sigsep/open-unmix-pytorch/blob/fb672c9584997c2b05e148eeaa65b4c23ed4693b/README.md"
+      },
+      "weight_deposit": {
+        "url": "https://zenodo.org/records/3370489",
+        "doi": "10.5281/zenodo.3370489",
+        "title": "Open-Unmix-Pytorch UMX-HQ",
+        "version": "1.0.1",
+        "modified": "2020-01-25T19:22:13.443970+00:00",
+        "vocals_checkpoint": "vocals-b62c91ce.pth",
+        "published_checkpoint_checksum": "md5:d918985fad0fedf6d9ce89e279aa7218"
+      },
+      "limitation": "The deposit describes UMX-HQ weights. Its listed checksum is not proof that the local quantized ONNX was converted from that checkpoint. UMXL is a different model with separately restricted weights; no UMXL permission is inferred."
+    }
+  ],
+  "source_models": [
+    {
+      "path": "app/src/main/assets/beat_this_final0_q8.onnx",
+      "family_as_identified_by_local_sources": "beat-this",
+      "role": "Android / TV active beat asset",
+      "bytes": 23138816,
+      "sha256": "7801f9c1adfd5ff193f37ececa3320bf1fda1ddee2bf7de341cea4c25ffd0acd",
+      "exact_checkpoint_to_onnx_lineage": "Unresolved"
+    },
+    {
+      "path": "app/src/main/assets/vocals_umxhq_int8.onnx",
+      "family_as_identified_by_local_sources": "umx-hq",
+      "role": "Android / TV vocal asset",
+      "bytes": 9054206,
+      "sha256": "a2be987b55a29bc149d3a6ae99b08175d81f85ee292a8ea21f96c3a473bc94cb",
+      "exact_checkpoint_to_onnx_lineage": "Unresolved"
+    },
+    {
+      "path": "desktopApp/src/main/resources/models/beat_this_int8.onnx",
+      "family_as_identified_by_local_sources": "beat-this",
+      "role": "Retained Native Desktop beat asset",
+      "bytes": 4533252,
+      "sha256": "9dc29f1fcd713d18f48a2755109fce01429ba6d1639607af8ae5c7449b47070f",
+      "exact_checkpoint_to_onnx_lineage": "Unresolved"
+    },
+    {
+      "path": "web/app/public/models/beat_this_final0_q8.onnx",
+      "family_as_identified_by_local_sources": "beat-this",
+      "role": "Web beat asset",
+      "bytes": 23138816,
+      "sha256": "7801f9c1adfd5ff193f37ececa3320bf1fda1ddee2bf7de341cea4c25ffd0acd",
+      "exact_checkpoint_to_onnx_lineage": "Unresolved"
+    },
+    {
+      "path": "web/app/public/models/vocals_umxhq_int8.onnx",
+      "family_as_identified_by_local_sources": "umx-hq",
+      "role": "Web vocal asset",
+      "bytes": 9054206,
+      "sha256": "a2be987b55a29bc149d3a6ae99b08175d81f85ee292a8ea21f96c3a473bc94cb",
+      "exact_checkpoint_to_onnx_lineage": "Unresolved"
+    }
+  ],
+  "package_layouts": {
+    "android_tv": [
+      {
+        "entry": "beat_this_final0_q8.onnx",
+        "bytes": 23138816,
+        "sha256": "7801f9c1adfd5ff193f37ececa3320bf1fda1ddee2bf7de341cea4c25ffd0acd"
+      },
+      {
+        "entry": "vocals_umxhq_int8.onnx",
+        "bytes": 9054206,
+        "sha256": "a2be987b55a29bc149d3a6ae99b08175d81f85ee292a8ea21f96c3a473bc94cb"
+      }
+    ],
+    "desktop": [
+      {
+        "entry": "beat_this_final0_q8.onnx",
+        "bytes": 23138816,
+        "sha256": "7801f9c1adfd5ff193f37ececa3320bf1fda1ddee2bf7de341cea4c25ffd0acd"
+      },
+      {
+        "entry": "vocals_umxhq_int8.onnx",
+        "bytes": 9054206,
+        "sha256": "a2be987b55a29bc149d3a6ae99b08175d81f85ee292a8ea21f96c3a473bc94cb"
+      },
+      {
+        "entry": "beat_this_int8.onnx",
+        "bytes": 4533252,
+        "sha256": "9dc29f1fcd713d18f48a2755109fce01429ba6d1639607af8ae5c7449b47070f"
+      }
+    ],
+    "web_model_assets": [
+      {
+        "entry": "beat_this_final0_q8.onnx",
+        "bytes": 23138816,
+        "sha256": "7801f9c1adfd5ff193f37ececa3320bf1fda1ddee2bf7de341cea4c25ffd0acd"
+      },
+      {
+        "entry": "vocals_umxhq_int8.onnx",
+        "bytes": 9054206,
+        "sha256": "a2be987b55a29bc149d3a6ae99b08175d81f85ee292a8ea21f96c3a473bc94cb"
+      }
+    ]
+  },
+  "selection_evidence": {
+    "shared_beat_asset": "shared/src/jvmSharedMain/kotlin/com/music/bitchord/playback/smart/BeatTracker.kt: MODEL_ASSET",
+    "native_retained_beat_asset": "desktopApp/src/main/kotlin/com/music/bitchord/desktop/DesktopTrackAnalyzer.kt: BeatTracker.RETIRED_MODEL_ASSET",
+    "vocal_asset": "shared/src/jvmSharedMain/kotlin/com/music/bitchord/playback/smart/VocalTracker.kt: MODEL_ASSET",
+    "desktop_packaging": "desktopApp/build.gradle.kts: processResources copies current app ONNX assets alongside the retained Desktop resource"
+  },
+  "unresolved_release_gates": [
+    "Exact original checkpoint fingerprint for each local ONNX export, including the retained native beat model.",
+    "Pinned exporter/conversion source, arguments, ONNX opset, quantization configuration and any calibration inputs.",
+    "Reproduction or documented numerical-equivalence evidence binding each conversion to the claimed checkpoint and current ONNX fingerprint.",
+    "Actual final Android/TV/Desktop/Web package notice inspection; this inventory is source evidence only until those artifacts are checked.",
+    "Separate font permission, native corresponding-source/relinking and other distribution gates remain open."
+  ]
+}

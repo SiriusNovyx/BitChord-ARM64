@@ -1,11 +1,13 @@
 package com.music.bitchord.desktop
 
+import com.music.bitchord.data.discord.DiscordApplication
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.data.model.artworkAt
 import com.my.kizzy.rpc.KizzyRPC
 import com.my.kizzy.rpc.RpcImage
 import com.my.kizzy.rpc.UserInfo
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +26,45 @@ import java.util.UUID
 
 internal fun discordPlaybackRevision(state: DesktopPlaybackState, speed: Float): String? =
     state.song?.let { "${it.videoId}|${state.durationMs}|$speed|${state.isPlaying}|${state.seeks}|${state.awaitingAudio}" }
+
+internal fun desktopDiscordPlaybackState(
+    current: DesktopPlaybackState,
+    previous: DesktopPlaybackState?,
+): DesktopPlaybackState? = when {
+    current.song != null -> current
+    else -> previous?.takeIf { it.song != null }?.copy(isPlaying = false, awaitingAudio = false)
+}
+
+internal fun desktopDiscordPlaybackLine(
+    state: DesktopPlaybackState,
+    pausedLabel: String,
+    bufferingLabel: String,
+): String {
+    val artist = state.song?.artist.orEmpty()
+    val status = when {
+        !state.isPlaying -> pausedLabel
+        state.awaitingAudio -> bufferingLabel
+        else -> return artist
+    }
+    return listOf(status, artist).filter(String::isNotBlank).joinToString(" · ")
+}
+
+internal fun desktopDiscordTimeline(state: DesktopPlaybackState, startMs: Long, endMs: Long): JsonObject? =
+    if (state.isPlaying && !state.awaitingAudio) buildJsonObject {
+        put("start", startMs)
+        put("end", endMs)
+    } else null
+
+internal fun desktopDiscordQualityLine(state: DesktopPlaybackState, showAudioQuality: Boolean): String? =
+    if (showAudioQuality) desktopAudioQualityLine(state.streamFormat?.nerdSnapshot(state.streamSourceId)) else null
+
+internal fun desktopDiscordArtwork(song: Song): String? =
+    song.artworkAt(480)?.takeIf { it.startsWith("http") }
+
+internal fun desktopDiscordAssets(song: Song, quality: String?): JsonObject = buildJsonObject {
+    desktopDiscordArtwork(song)?.let { put("large_image", it) }
+    quality?.let { put("large_text", it) }
+}
 
 /**
  * Publishes what is playing to Discord as a Rich Presence activity.
@@ -78,8 +119,9 @@ internal object DesktopDiscordRpc {
 
     private val session = DesktopDiscordSession(
         scope = scope,
-        connect = { DesktopDiscordIpc.connect(APPLICATION_ID) },
+        connect = { DesktopDiscordIpc.connect(DiscordApplication.ID) },
         onAvailabilityChanged = { available ->
+            if (_localClient.value && !available) DesktopTrackLog.log("discord: local client disconnected")
             _localClient.value = available
         },
         onSessionStopped = ::closeGateway,
@@ -114,12 +156,9 @@ internal object DesktopDiscordRpc {
         session.setEnabled(value)
     }
 
-    fun onPlaybackStateChanged(state: DesktopPlaybackState, speed: Float) = synchronized(snapshotLock) {
-        val song = state.song
-        if (song == null) {
-            clear()
-            return@synchronized
-        }
+    fun onPlaybackStateChanged(current: DesktopPlaybackState, speed: Float) = synchronized(snapshotLock) {
+        val state = desktopDiscordPlaybackState(current, latest?.state) ?: return@synchronized
+        val song = state.song ?: return@synchronized
         val rate = speed.takeIf { it.isFinite() && it > 0f } ?: 1f
         val now = System.currentTimeMillis()
         val duration = state.durationMs.coerceAtLeast(0L)
@@ -139,12 +178,8 @@ internal object DesktopDiscordRpc {
     }
 
     private fun publish(snapshot: PresenceSnapshot) {
-        val song = snapshot.state.song ?: return
-        if (!snapshot.state.isPlaying || snapshot.state.awaitingAudio) {
-            session.update(null) { closeGateway() }
-            return
-        }
-        val activity = ipcActivity(song, snapshot.title, snapshot.startMs, snapshot.endMs)
+        val quality = desktopDiscordQualityLine(snapshot.state, DesktopDiscordSettings.showAudioQuality.value)
+        val activity = ipcActivity(snapshot, quality)
         session.update(activity) { sendGateway(snapshot) }
     }
 
@@ -163,8 +198,8 @@ internal object DesktopDiscordRpc {
         val song = snapshot.state.song ?: return
         val title = snapshot.title
         val now = snapshot.nowMs
-        val elapsed = now - snapshot.startMs
-        val remaining = snapshot.endMs - now
+        val timeline = desktopDiscordTimeline(snapshot.state, snapshot.startMs, snapshot.endMs)
+        val quality = desktopDiscordQualityLine(snapshot.state, DesktopDiscordSettings.showAudioQuality.value)
         val client = rpc ?: KizzyRPC(
             token = _token.value,
             os = if (DesktopPlatform.isWindows) "Windows" else "Linux",
@@ -172,40 +207,46 @@ internal object DesktopDiscordRpc {
             device = "desktop",
             userAgent = USER_AGENT,
             superPropertiesBase64 = superProperties(),
-        ).also { rpc = it }
+        ).also {
+            rpc = it
+            DesktopTrackLog.log("discord: using account gateway")
+        }
 
-        client.setActivity(
-            name = DesktopDiscordSettings.activityName.value
-                .ifBlank { DesktopDiscordSettings.APP_NAME },
-            details = title,
-            state = song.artist,
-            detailsUrl = watchUrl(song),
-            // Never null: an activity with no large image falls back to
-            // whatever icon the application id points at, which is not
-            // ours to set.
-            largeImage = RpcImage.ExternalImage(
-                song.artworkAt(ART_PX)?.takeIf { it.startsWith("http") } ?: FALLBACK_ART_URL,
-            ),
-            smallImage = null,
-            largeText = song.albumName,
-            buttons = buttonLabels(song).takeIf { it.isNotEmpty() },
-            type = when (DesktopDiscordSettings.activityType.value) {
-                "playing" -> KizzyRPC.Type.PLAYING
-                "watching" -> KizzyRPC.Type.WATCHING
-                "competing" -> KizzyRPC.Type.COMPETING
-                else -> KizzyRPC.Type.LISTENING
-            },
-            statusDisplayType = if (DesktopDiscordSettings.useDetails.value) {
-                KizzyRPC.StatusDisplayType.DETAILS
-            } else {
-                KizzyRPC.StatusDisplayType.STATE
-            },
-            since = now,
-            startTime = now - elapsed,
-            endTime = now + remaining,
-            applicationId = APPLICATION_ID,
-            status = DesktopDiscordSettings.status.value,
-        )
+        try {
+            client.setActivity(
+                name = DesktopDiscordSettings.activityName.value
+                    .ifBlank { DesktopDiscordSettings.APP_NAME },
+                details = title,
+                state = playbackLine(snapshot.state),
+                detailsUrl = watchUrl(song),
+                // With no usable artwork, Discord draws the shared application's icon.
+                largeImage = desktopDiscordArtwork(song)?.let(RpcImage::ExternalImage),
+                smallImage = null,
+                largeText = quality,
+                buttons = buttonLabels(song).takeIf { it.isNotEmpty() },
+                type = when (DesktopDiscordSettings.activityType.value) {
+                    "playing" -> KizzyRPC.Type.PLAYING
+                    "watching" -> KizzyRPC.Type.WATCHING
+                    "competing" -> KizzyRPC.Type.COMPETING
+                    else -> KizzyRPC.Type.LISTENING
+                },
+                statusDisplayType = if (DesktopDiscordSettings.useDetails.value) {
+                    KizzyRPC.StatusDisplayType.DETAILS
+                } else {
+                    KizzyRPC.StatusDisplayType.STATE
+                },
+                since = now,
+                startTime = if (timeline != null) snapshot.startMs else null,
+                endTime = if (timeline != null) snapshot.endMs else null,
+                applicationId = DiscordApplication.ID,
+                status = DesktopDiscordSettings.status.value,
+            )
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            DesktopTrackLog.log("discord: gateway push failed (${failure.javaClass.simpleName})")
+            throw failure
+        }
     }
 
     /**
@@ -216,22 +257,17 @@ internal object DesktopDiscordRpc {
      * is what needs an account token, and the client resolves an http asset by
      * itself.
      */
-    private fun ipcActivity(song: Song, title: String, startMs: Long, endMs: Long): JsonObject = buildJsonObject {
+    private fun ipcActivity(snapshot: PresenceSnapshot, quality: String?): JsonObject = buildJsonObject {
+        val song = requireNotNull(snapshot.state.song)
         put("type", DesktopDiscordSettings.activityNumber(DesktopDiscordSettings.activityType.value))
         DesktopDiscordSettings.activityName.value.takeIf(String::isNotBlank)?.let { put("name", it) }
-        put("details", title)
-        put("state", song.artist)
+        put("details", snapshot.title)
+        put("state", playbackLine(snapshot.state))
         // Which line Discord bolds, and repeats beside the name in a member
         // list — the whole point of "Lead with the song".
         put("status_display_type", if (DesktopDiscordSettings.useDetails.value) 1 else 2)
-        putJsonObject("timestamps") {
-            put("start", startMs)
-            put("end", endMs)
-        }
-        putJsonObject("assets") {
-            put("large_image", song.artworkAt(ART_PX)?.takeIf { it.startsWith("http") } ?: FALLBACK_ART_URL)
-            song.albumName?.let { put("large_text", it) }
-        }
+        desktopDiscordTimeline(snapshot.state, snapshot.startMs, snapshot.endMs)?.let { put("timestamps", it) }
+        put("assets", desktopDiscordAssets(song, quality))
         val labels = buttonLabels(song)
         if (labels.isNotEmpty()) {
             putJsonArray("buttons") {
@@ -241,6 +277,12 @@ internal object DesktopDiscordRpc {
             }
         }
     }
+
+    private fun playbackLine(state: DesktopPlaybackState): String = desktopDiscordPlaybackLine(
+        state,
+        DesktopStrings["listen_together_activity_paused", "Paused playback"],
+        DesktopStrings["d_buffering", "Buffering"],
+    )
 
     /** The buttons as configured: text with its variables filled in, and hidden ones dropped. */
     private fun buttonLabels(song: Song): List<Pair<String, String>> = buildList {
@@ -293,11 +335,7 @@ internal object DesktopDiscordRpc {
     private const val KEY_USERNAME = "discord_username"
     private const val KEY_ENABLED = "discord_rpc_enabled"
 
-    private const val APPLICATION_ID = "1411019391843172514"
     private const val PROJECT_URL = "https://github.com/kushagrasinghx/BitChord"
-    private const val ART_PX = 480
-    private const val FALLBACK_ART_URL =
-        "https://raw.githubusercontent.com/kushagrasinghx/BitChord/main/app/src/main/ic_launcher-playstore.png"
     private const val CLIENT_VERSION = "0.0.83"
     private const val CLIENT_BUILD = "352675"
     private const val USER_AGENT =

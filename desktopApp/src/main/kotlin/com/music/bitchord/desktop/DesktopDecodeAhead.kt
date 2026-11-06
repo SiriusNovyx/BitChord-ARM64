@@ -82,6 +82,9 @@ internal class DesktopDecodeAhead(
         start()
     }
 
+    /** Inspect a prepared deck without consuming its queued PCM or waiting for a read. */
+    val failureCause: Exception? get() = lock.withLock { failure.takeUnless { closed } }
+
     /** Bounded wait: the audio thread must return to its command loop while decoding is stalled. */
     fun poll(timeoutMs: Long = 20): DesktopDecodedRead = lock.withLock {
         require(timeoutMs >= 0)

@@ -30,6 +30,7 @@ internal object DesktopWindowsFrame {
             }
             if (ready) {
                 installed = true
+                DesktopTouchInput.install(title)
                 return true
             }
             delay(INSTALL_RETRY_MILLIS)
@@ -51,6 +52,16 @@ internal object DesktopWindowsFrame {
 
     @JvmStatic
     private external fun nativeStartDrag(): Boolean
+
+    /**
+     * Fills the whole monitor — taskbar included — with a frameless window above it, or puts the
+     * caption window back. False without the native frame, and the caller falls back to maximize.
+     */
+    fun setFullscreen(on: Boolean): Boolean =
+        installed && runCatching { nativeSetFullscreen(on) }.getOrDefault(false)
+
+    @JvmStatic
+    private external fun nativeSetFullscreen(on: Boolean): Boolean
 
     /**
      * Puts DWM's material behind the window — [DesktopBackdrop.nativeKind] — or takes it away.

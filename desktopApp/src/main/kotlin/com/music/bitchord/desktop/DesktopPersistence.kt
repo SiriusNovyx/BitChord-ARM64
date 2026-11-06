@@ -2,9 +2,6 @@ package com.music.bitchord.desktop
 
 import com.music.bitchord.data.lyrics.LyricsSource
 import com.music.bitchord.data.model.Song
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 import java.nio.charset.StandardCharsets
 import java.util.Base64
 import java.util.UUID
@@ -13,10 +10,6 @@ import java.util.prefs.Preferences
 /** Small OS-backed store for desktop state; no Android Context is required. */
 class DesktopPersistence {
     internal val preferences = Preferences.userRoot().node("com.music.bitchord.desktop")
-    private val sourceJson = Json {
-        ignoreUnknownKeys = true
-        encodeDefaults = true
-    }
 
     fun likedIds(): Set<String> = readLines(KEY_LIKED_IDS).toSet()
 
@@ -114,42 +107,23 @@ class DesktopPersistence {
         } else {
             legacy
         }
-        val stored = raw?.let {
-            runCatching { sourceJson.decodeFromString<List<DesktopSourceConfig>>(it) }.getOrNull()
-        }
+        val snapshot = raw?.let { runCatching { DesktopSourceStorage.decode(it) }.getOrNull() }
+        val stored = snapshot?.configs
         // Something is stored and could not be read.
         if ((raw != null || protected != null) && stored == null) {
             DesktopTrackLog.log("stored sources could not be read; leaving them untouched")
             return listOf(
-                DesktopSourceConfig("jiosaavn", DesktopSourceKind.JIOSAAVN, enabled = sourceEnabled("jiosaavn")),
-                DesktopSourceConfig("youtube", DesktopSourceKind.YOUTUBE),
+                DesktopSourceConfig("jiosaavn", DesktopSourceKind.JIOSAAVN, enabled = false),
+                DesktopSourceConfig("spotify", DesktopSourceKind.SPOTIFY),
+                DesktopSourceConfig("youtube", DesktopSourceKind.YOUTUBE, enabled = false),
             )
         }
-        // A build-seeded module index is no longer carried, and the one this app used to ship has
-        // been withdrawn — it answers HTTP 404 now.
-        val initial = (stored ?: migrateLegacySources())
-            .filterNot { it.kind == DesktopSourceKind.MODULE }
-        val withBuiltIns = initial.toMutableList().apply {
-            if (none { it.kind == DesktopSourceKind.JIOSAAVN }) {
-                add(
-                    DesktopSourceConfig(
-                        "jiosaavn",
-                        DesktopSourceKind.JIOSAAVN,
-                        enabled = sourceEnabled("jiosaavn"),
-                    ),
-                )
-            }
-            if (none { it.kind == DesktopSourceKind.YOUTUBE }) {
-                add(DesktopSourceConfig("youtube", DesktopSourceKind.YOUTUBE))
-            }
-        }
-
-        // YouTube remains the non-removable catalogue fallback, matching the Android source
-        // registry.
-        val normalized = withBuiltIns.map {
-            if (it.kind == DesktopSourceKind.YOUTUBE && !it.enabled) it.copy(enabled = true) else it
-        }.inSourceOrder()
-        if (stored == null || normalized != stored || (DesktopPlatform.isWindows && protected == null)) {
+        val normalized = DesktopSourceStorage.normalize(
+            stored ?: migrateLegacySources(),
+            preserveOrder = boolean("source_order_v2", false),
+            legacyJioEnabled = boolean("source_jiosaavn_enabled", false),
+        )
+        if (stored == null || normalized != stored || !boolean("source_order_v2", false) || (DesktopPlatform.isWindows && protected == null)) {
             saveSourceConfigs(normalized)
             if (DesktopPlatform.isWindows && stored == null) {
                 DesktopPreferenceChunks.remove(preferences, KEY_MODULE_INDEX_URL)
@@ -159,14 +133,13 @@ class DesktopPersistence {
     }
 
     internal fun saveSourceConfigs(configs: List<DesktopSourceConfig>) {
-        val normalized = configs.map { config ->
-            if (config.kind == DesktopSourceKind.ADDON) {
-                config.copy(baseUrl = DesktopAddonClient.normalizeBase(config.baseUrl))
-            } else {
-                config
-            }
-        }
-        val raw = sourceJson.encodeToString(normalized)
+        val protected = DesktopPreferenceChunks.read(preferences, KEY_SOURCE_CONFIGS_PROTECTED)
+        val previous = if (protected != null) {
+            Base64.getDecoder().decode(protected).let(DesktopWindowsCrypto::unprotect)
+                ?.toString(StandardCharsets.UTF_8) ?: error("Windows could not read the configured source credentials")
+        } else DesktopPreferenceChunks.read(preferences, KEY_SOURCE_CONFIGS)
+        val snapshot = previous?.let(DesktopSourceStorage::decode)
+        val raw = DesktopSourceStorage.encode(configs.inSourceOrder(), snapshot)
         if (DesktopPlatform.isWindows) {
             val sealed = DesktopWindowsCrypto.protect(raw.toByteArray(StandardCharsets.UTF_8))
                 ?: error("Windows could not protect the configured source credentials")
@@ -179,6 +152,7 @@ class DesktopPersistence {
         } else {
             DesktopPreferenceChunks.write(preferences, KEY_SOURCE_CONFIGS, raw)
         }
+        saveBoolean("source_order_v2", true)
     }
 
     /** The stream ceiling in force. */

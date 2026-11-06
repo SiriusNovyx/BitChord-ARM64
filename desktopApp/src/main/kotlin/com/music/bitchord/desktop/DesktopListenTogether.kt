@@ -467,6 +467,7 @@ internal object DesktopListenTogether {
         while (currentCoroutineContext().isActive) {
             val code = _state.value.code ?: return
             val held = token ?: return
+            var ownedSession: DefaultClientWebSocketSession? = null
             try {
                 _state.update { it.copy(connection = Connection.CONNECTING) }
                 val server = activePartyServerBase ?: return
@@ -474,6 +475,7 @@ internal object DesktopListenTogether {
                     urlString = "${wsBase(server)}/ws/parties/$code",
                     request = { header("Authorization", "Bearer $held") },
                 ) {
+                    ownedSession = this
                     session = this
                     backoffMs = 1_000L
                     _state.update { it.copy(connection = Connection.LIVE, error = null) }
@@ -488,7 +490,7 @@ internal object DesktopListenTogether {
             } catch (failure: Exception) {
                 DesktopTrackLog.log("listen together: socket dropped: ${redact(failure.message)}")
             } finally {
-                session = null
+                if (session === ownedSession) session = null
             }
             if (!currentCoroutineContext().isActive) return
             _state.update { it.copy(connection = Connection.CONNECTING) }

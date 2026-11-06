@@ -15,6 +15,7 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import com.music.bitchord.data.model.Song
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -36,11 +37,160 @@ class DesktopDiscordSessionTest {
 
     private fun activity(title: String) = buildJsonObject { put("details", title) }
 
+    @Test fun `paused track survives session updates until presence is disabled`() = runBlocking {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        try {
+            val connection = Connection()
+            val session = DesktopDiscordSession(scope, { connection }, {},
+                checkIntervalMs = 5_000, minPublishIntervalMs = 0)
+            val playing = DesktopPlaybackState(song = Song("track", "Track", "Artist", null), isPlaying = true)
+            fun frame(state: DesktopPlaybackState) = buildJsonObject {
+                put("details", state.song!!.title)
+                put("state", desktopDiscordPlaybackLine(state, "Paused playback", "Buffering"))
+                desktopDiscordTimeline(state, 10_000, 250_000)?.let { put("timestamps", it) }
+            }
+            session.update(frame(playing))
+            session.setEnabled(true)
+            assertEquals(frame(playing), withTimeout(2_000) { connection.messages.receive() })
+            val paused = desktopDiscordPlaybackState(DesktopPlaybackState(), playing)!!
+            session.update(frame(paused))
+            assertEquals(frame(paused), withTimeout(2_000) { connection.messages.receive() })
+            assertTrue(!connection.closed.isCompleted)
+            session.update(frame(playing))
+            assertEquals(frame(playing), withTimeout(2_000) { connection.messages.receive() })
+            session.setEnabled(false)
+            withTimeout(2_000) { connection.closed.await() }
+            assertEquals(null, connection.messages.tryReceive().getOrThrow())
+        } finally { scope.cancel() }
+    }
+
+    @Test fun `rapid seeks publish the final anchored activity within the send budget`() = runBlocking {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        try {
+            val connection = Connection()
+            val session = DesktopDiscordSession(scope, { connection }, {},
+                checkIntervalMs = 5_000, minPublishIntervalMs = 200)
+            session.update(activity("Initial"))
+            session.setEnabled(true)
+            assertEquals(activity("Initial"), withTimeout(2_000) { connection.messages.receive() })
+            session.update(null)
+            session.update(activity("Intermediate seek"))
+            val final = buildJsonObject {
+                put("details", "Final seek")
+                put("start", 10_000)
+                put("end", 250_000)
+            }
+            session.update(final)
+            assertTrue(connection.messages.tryReceive().isFailure, "Burst must wait for the send budget")
+            assertEquals(final, withTimeout(2_000) { connection.messages.receive() })
+            assertTrue(connection.messages.tryReceive().isFailure, "Do not replay intermediate seek timestamps")
+            session.setEnabled(false)
+        } finally { scope.cancel() }
+    }
+
+    @Test fun `disabling discards a seek waiting for its publication budget`() = runBlocking {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        try {
+            val connection = Connection()
+            val session = DesktopDiscordSession(scope, { connection }, {},
+                checkIntervalMs = 5_000, minPublishIntervalMs = 200)
+            session.update(activity("Initial"))
+            session.setEnabled(true)
+            withTimeout(2_000) { connection.messages.receive() }
+            session.update(activity("Must not publish"))
+            session.setEnabled(false)
+            withTimeout(2_000) { connection.closed.await() }
+            assertEquals(null, connection.messages.tryReceive().getOrThrow())
+            assertTrue(connection.messages.tryReceive().isFailure)
+        } finally { scope.cancel() }
+    }
+
+    @Test fun `gateway coalesces rapid seeks without losing the final snapshot`() = runBlocking {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        try {
+            val sent = Channel<String>(Channel.UNLIMITED)
+            val session = DesktopDiscordSession(scope, { null }, {},
+                retryDelayMs = 5_000, minPublishIntervalMs = 200)
+            session.update(activity("Initial")) { sent.send("Initial") }
+            session.setEnabled(true)
+            assertEquals("Initial", withTimeout(2_000) { sent.receive() })
+            session.update(activity("Intermediate")) { sent.send("Intermediate") }
+            session.update(activity("Final")) { sent.send("Final") }
+            assertTrue(sent.tryReceive().isFailure)
+            assertEquals("Final", withTimeout(2_000) { sent.receive() })
+            assertTrue(sent.tryReceive().isFailure)
+            session.setEnabled(false)
+        } finally { scope.cancel() }
+    }
+
+    @Test fun `gateway budget starts after a delayed publication finishes`() = runBlocking {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        try {
+            val sent = Channel<String>(Channel.UNLIMITED)
+            val session = DesktopDiscordSession(scope, { null }, {},
+                retryDelayMs = 5_000, minPublishIntervalMs = 200)
+            session.update(activity("Slow first")) { delay(250); sent.send("First") }
+            session.setEnabled(true)
+            assertEquals("First", withTimeout(2_000) { sent.receive() })
+            session.update(activity("Final")) { sent.send("Final") }
+            assertTrue(sent.tryReceive().isFailure, "A delayed send must still consume its publication budget")
+            assertEquals("Final", withTimeout(2_000) { sent.receive() })
+            session.setEnabled(false)
+        } finally { scope.cancel() }
+    }
+
+    @Test fun `local takeover rereads the seek after gateway cancellation cleanup`() = runBlocking {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
+        val release = CompletableDeferred<Unit>()
+        try {
+            val connection = Connection()
+            val available = AtomicBoolean(false)
+            val entered = CompletableDeferred<Unit>()
+            val cancelling = CompletableDeferred<Unit>()
+            val session = DesktopDiscordSession(scope, { if (available.get()) connection else null }, {},
+                retryDelayMs = 5_000, minPublishIntervalMs = 200)
+            session.update(activity("Obsolete")) {
+                entered.complete(Unit)
+                try { awaitCancellation() } finally {
+                    withContext(NonCancellable) { cancelling.complete(Unit); release.await() }
+                }
+            }
+            session.setEnabled(true)
+            withTimeout(2_000) { entered.await() }
+            delay(250)
+            available.set(true)
+            session.probe()
+            withTimeout(2_000) { cancelling.await() }
+            session.update(activity("Final seek"))
+            release.complete(Unit)
+            assertEquals(activity("Final seek"), withTimeout(2_000) { connection.messages.receive() })
+            session.setEnabled(false)
+        } finally { release.complete(Unit); scope.cancel() }
+    }
+
+    @Test fun `failed gateway attempts retain retry backoff without publication throttling`() = runBlocking {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        try {
+            val attempts = Channel<Long>(Channel.UNLIMITED)
+            val session = DesktopDiscordSession(scope, { null }, {},
+                retryDelayMs = 300, minPublishIntervalMs = 0)
+            session.update(activity("Retry")) {
+                attempts.send(System.nanoTime())
+                error("Synthetic gateway failure")
+            }
+            session.setEnabled(true)
+            val first = withTimeout(2_000) { attempts.receive() }
+            val second = withTimeout(2_000) { attempts.receive() }
+            assertTrue(second - first >= 300_000_000L, "Failures must respect retryDelayMs")
+            session.setEnabled(false)
+        } finally { scope.cancel() }
+    }
+
     @Test fun `restored enabled state connects and publishes the already playing snapshot`() = runBlocking {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         try {
             val connection = Connection()
-            val session = DesktopDiscordSession(scope, { connection }, {}, 10, 20)
+            val session = DesktopDiscordSession(scope, { connection }, {}, 10, 20, minPublishIntervalMs = 0)
             session.update(activity("Playing before connection"))
             session.setEnabled(true)
             assertEquals(activity("Playing before connection"), withTimeout(2_000) { connection.messages.receive() })
@@ -57,7 +207,7 @@ class DesktopDiscordSessionTest {
             var attempts = 0
             val session = DesktopDiscordSession(scope, {
                 if (++attempts == 1) { attempted.complete(Unit); null } else connection
-            }, {}, 10, 20)
+            }, {}, 10, 20, minPublishIntervalMs = 0)
             session.setEnabled(true)
             withTimeout(2_000) { attempted.await() }
             session.update(activity("Latest"))
@@ -73,7 +223,7 @@ class DesktopDiscordSessionTest {
             val failed = Connection().apply { fail = true }
             val replacement = Connection()
             var attempts = 0
-            val session = DesktopDiscordSession(scope, { if (++attempts == 1) failed else replacement }, {}, 10, 20)
+            val session = DesktopDiscordSession(scope, { if (++attempts == 1) failed else replacement }, {}, 10, 20, minPublishIntervalMs = 0)
             session.update(activity("Same track"))
             session.setEnabled(true)
             assertEquals(activity("Same track"), withTimeout(2_000) { replacement.messages.receive() })
@@ -91,7 +241,7 @@ class DesktopDiscordSessionTest {
             val session = DesktopDiscordSession(scope, {
                 withContext(NonCancellable) { opening.complete(Unit); release.await() }
                 connection
-            }, {}, 10, 20)
+            }, {}, 10, 20, minPublishIntervalMs = 0)
             session.update(activity("Must not publish"))
             session.setEnabled(true)
             withTimeout(2_000) { opening.await() }
@@ -106,7 +256,7 @@ class DesktopDiscordSessionTest {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         try {
             val connection = Connection()
-            val session = DesktopDiscordSession(scope, { connection }, {}, 10, 20)
+            val session = DesktopDiscordSession(scope, { connection }, {}, 10, 20, minPublishIntervalMs = 0)
             session.update(activity("Initial"))
             session.setEnabled(true)
             assertEquals(activity("Initial"), withTimeout(2_000) { connection.messages.receive() })
@@ -123,7 +273,7 @@ class DesktopDiscordSessionTest {
         try {
             val connection = Connection()
             val attempts = AtomicInteger()
-            val session = DesktopDiscordSession(scope, { attempts.incrementAndGet(); connection }, {}, 10, 20)
+            val session = DesktopDiscordSession(scope, { attempts.incrementAndGet(); connection }, {}, 10, 20, minPublishIntervalMs = 0)
             session.update(activity("One owner"))
             session.setEnabled(true)
             withTimeout(2_000) { connection.messages.receive() }
@@ -141,7 +291,7 @@ class DesktopDiscordSessionTest {
             val first = Connection()
             val second = Connection()
             val attempts = AtomicInteger()
-            val session = DesktopDiscordSession(scope, { if (attempts.incrementAndGet() == 1) first else second }, {}, 10, 20)
+            val session = DesktopDiscordSession(scope, { if (attempts.incrementAndGet() == 1) first else second }, {}, 10, 20, minPublishIntervalMs = 0)
             session.update(activity("Still playing"))
             session.setEnabled(true)
             withTimeout(2_000) { first.messages.receive() }
@@ -158,7 +308,7 @@ class DesktopDiscordSessionTest {
             val available = AtomicBoolean(false)
             val local = Connection()
             val fallbacks = Channel<Unit>(Channel.UNLIMITED)
-            val session = DesktopDiscordSession(scope, { if (available.get()) local else null }, {}, 10, 20)
+            val session = DesktopDiscordSession(scope, { if (available.get()) local else null }, {}, 10, 20, minPublishIntervalMs = 0)
             session.update(activity("Same activity")) { fallbacks.send(Unit) }
             session.setEnabled(true)
             withTimeout(2_000) { fallbacks.receive() }
@@ -189,7 +339,7 @@ class DesktopDiscordSessionTest {
                     assertTrue(first.closed.isCompleted)
                     second
                 }
-            }, {}, 10, 20)
+            }, {}, 10, 20, minPublishIntervalMs = 0)
             session.update(activity("Latest"))
             session.setEnabled(true)
             withTimeout(2_000) { opening.await() }
@@ -203,13 +353,13 @@ class DesktopDiscordSessionTest {
         } finally { scope.cancel() }
     }
 
-    @Test fun `pause cancels a suspended gateway send before clearing the activity`() = runBlocking {
+    @Test fun `explicit clear cancels a suspended gateway send before clearing the activity`() = runBlocking {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         try {
             val entered = CompletableDeferred<Unit>()
             val cancelled = CompletableDeferred<Unit>()
             val cleared = CompletableDeferred<Unit>()
-            val session = DesktopDiscordSession(scope, { null }, {}, 10, 20)
+            val session = DesktopDiscordSession(scope, { null }, {}, 10, 20, minPublishIntervalMs = 0)
             session.update(activity("Old song")) {
                 entered.complete(Unit)
                 try { awaitCancellation() } finally { cancelled.complete(Unit) }
@@ -234,7 +384,7 @@ class DesktopDiscordSessionTest {
             val cancelled = AtomicInteger()
             val attempts = AtomicInteger()
             val session = DesktopDiscordSession(scope, { null }, {}, 10, 20,
-                onSessionStopped = { stopped.trySend(Unit) })
+                onSessionStopped = { stopped.trySend(Unit) }, minPublishIntervalMs = 0)
             session.update(activity("Retained through login")) {
                 if (attempts.incrementAndGet() == 1) first.complete(Unit)
                 else {

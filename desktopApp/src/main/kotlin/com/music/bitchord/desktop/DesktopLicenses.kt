@@ -33,10 +33,10 @@ internal object DesktopLicenses {
             listOf(
                 DesktopLicense(
                     "FFmpeg",
-                    "LGPL-2.1-or-later",
+                    "LGPL (see bundled build)",
                     "https://ffmpeg.org",
-                    "Decoding, demuxing and resampling. The LGPL build is used " +
-                        "deliberately; the GPL-enabled variant is not shipped.",
+                    "Decoding, demuxing and resampling. The Windows ARM64 build " +
+                        "reports LGPL-3.0-or-later; other builds retain their bundled license.",
                 ),
                 DesktopLicense(
                     "JavaCPP / JavaCPP Presets",
@@ -49,6 +49,18 @@ internal object DesktopLicenses {
                     "GPL-2.0-with-classpath-exception",
                     "https://openjfx.io",
                     "Video playback for animated cover art. Audio no longer goes through it.",
+                ),
+                DesktopLicense(
+                    "Signalsmith Stretch and Linear",
+                    "MIT",
+                    "https://github.com/Signalsmith-Audio/signalsmith-stretch",
+                    "Native LoopMix time stretching; full license texts are included with the portable package.",
+                ),
+                DesktopLicense(
+                    "AutoMix and Orchard-derived analysis policies",
+                    "AGPL-3.0-or-later",
+                    "https://github.com/kushagrasinghx/BitChord/tree/b690dc146009d4815825fa4a20815ef2e4ee8898/shared/src/commonMain/kotlin/com/music/bitchord/playback/smart",
+                    "Shared transition planning and analysis retain their original attribution headers.",
                 ),
             ),
         ),

@@ -89,4 +89,6 @@
     <string name="d_translation_unavailable">無法翻譯</string>
     <string name="d_what_the_translate_button_translates_into">歌詞翻譯按鈕翻譯成的語言</string>
     <string name="d_off">關閉</string>
+    <string name="pipeline_unknown">未知</string>
+    <string name="pipeline_no_app_resampling">應用程式內未轉換取樣率</string>
 </resources>

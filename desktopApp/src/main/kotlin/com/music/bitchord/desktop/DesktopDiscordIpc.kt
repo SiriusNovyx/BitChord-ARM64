@@ -35,6 +35,7 @@ import java.util.UUID
 internal class DesktopDiscordIpc internal constructor(
     private val channel: SocketChannel?,
     private val pipe: RandomAccessFile?,
+    val label: String = "local Discord IPC",
 ) : DesktopDiscordConnection {
 
     init { channel?.configureBlocking(false) }
@@ -58,11 +59,14 @@ internal class DesktopDiscordIpc internal constructor(
         fun connect(applicationId: String): DesktopDiscordIpc? {
             for (candidate in candidates()) {
                 val ipc = runCatching { open(candidate) }.getOrNull() ?: continue
-                val ready = runCatching {
+                val failure = runCatching {
                     ipc.handshake(applicationId)
-                    true
-                }.getOrDefault(false)
-                if (ready) return ipc
+                }.exceptionOrNull()
+                if (failure == null) {
+                    DesktopTrackLog.log("discord: local client on ${ipc.label}")
+                    return ipc
+                }
+                DesktopTrackLog.log("discord: local handshake failed on ${ipc.label} (${failure.javaClass.simpleName})")
                 ipc.close()
             }
             return null
@@ -70,7 +74,7 @@ internal class DesktopDiscordIpc internal constructor(
 
         private fun open(path: String): DesktopDiscordIpc =
             if (DesktopPlatform.isWindows) {
-                DesktopDiscordIpc(null, RandomAccessFile(path, "rw"))
+                DesktopDiscordIpc(null, RandomAccessFile(path, "rw"), path)
             } else {
                 val socket = SocketChannel.open(StandardProtocolFamily.UNIX)
                 try {
@@ -83,7 +87,7 @@ internal class DesktopDiscordIpc internal constructor(
                     socket.close()
                     throw failure
                 }
-                DesktopDiscordIpc(socket, null)
+                DesktopDiscordIpc(socket, null, path)
             }
 
         private fun candidates(): List<String> {
@@ -143,20 +147,25 @@ internal class DesktopDiscordIpc internal constructor(
 
     /** Publishes an activity, or takes the presence down when given null. */
     override fun setActivity(activity: JsonObject?) {
-        val nonce = UUID.randomUUID().toString()
-        val deadline = System.nanoTime() + IO_TIMEOUT_NANOS
-        send(OP_FRAME, activityPayload(activity, nonce), deadline)
-        repeat(MAX_REPLY_FRAMES) {
-            val response = read(deadline)?.let { Json.parseToJsonElement(it).jsonObject }
-                ?: throw IOException("Discord IPC closed before acknowledging activity")
-            if (response["nonce"]?.jsonPrimitive?.content == nonce) {
-                if (response["evt"]?.jsonPrimitive?.content == "ERROR") {
-                    throw IOException("Discord rejected the activity")
+        try {
+            val nonce = UUID.randomUUID().toString()
+            val deadline = System.nanoTime() + IO_TIMEOUT_NANOS
+            send(OP_FRAME, activityPayload(activity, nonce), deadline)
+            repeat(MAX_REPLY_FRAMES) {
+                val response = read(deadline)?.let { Json.parseToJsonElement(it).jsonObject }
+                    ?: throw IOException("Discord IPC closed before acknowledging activity")
+                if (response["nonce"]?.jsonPrimitive?.content == nonce) {
+                    if (response["evt"]?.jsonPrimitive?.content == "ERROR") {
+                        throw IOException("Discord rejected the activity")
+                    }
+                    if (response["cmd"]?.jsonPrimitive?.content == "SET_ACTIVITY") return
                 }
-                if (response["cmd"]?.jsonPrimitive?.content == "SET_ACTIVITY") return
             }
+            throw IOException("Discord did not acknowledge the activity")
+        } catch (failure: Exception) {
+            DesktopTrackLog.log("discord: local push failed on $label (${failure.javaClass.simpleName})")
+            throw failure
         }
-        throw IOException("Discord did not acknowledge the activity")
     }
 
     private fun send(opcode: Int, payload: String, deadline: Long = System.nanoTime() + IO_TIMEOUT_NANOS) {

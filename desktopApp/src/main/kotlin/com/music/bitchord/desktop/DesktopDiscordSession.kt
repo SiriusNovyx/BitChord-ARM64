@@ -18,6 +18,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonObject
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 internal interface DesktopDiscordConnection : Closeable {
     fun setActivity(activity: JsonObject?)
@@ -34,6 +35,7 @@ internal class DesktopDiscordSession(
     private val checkIntervalMs: Long = 15_000,
     private val onSessionStopped: () -> Unit = {},
     private val onLocalActivityPublished: () -> Unit = {},
+    private val minPublishIntervalMs: Long = 4_100,
 ) {
     private data class Control(val enabled: Boolean = false, val generation: Long = 0, val probe: Boolean = false)
     private data class Frame(val revision: Long, val activity: JsonObject?, val fallback: suspend () -> Unit)
@@ -42,7 +44,7 @@ internal class DesktopDiscordSession(
     private val changed = Channel<Unit>(Channel.CONFLATED)
 
     init {
-        require(retryDelayMs > 0 && checkIntervalMs > 0)
+        require(retryDelayMs > 0 && checkIntervalMs > 0 && minPublishIntervalMs >= 0)
         scope.launch {
             // collectLatest waits for the preceding owner's cleanup before opening another.
             control.collectLatest { desired ->
@@ -97,7 +99,10 @@ internal class DesktopDiscordSession(
         var fallbackRevision = -1L
         var fallbackJob: Job? = null
         var fallbackSucceeded = AtomicBoolean(false)
+        val fallbackCompletedAtNanos = AtomicReference<Long?>(null)
         var published = false
+        var lastPublishAtNanos: Long? = null
+        var fallbackFailedAtNanos: Long? = null
         try {
             while (true) {
                 ensureCurrent(desired)
@@ -105,6 +110,7 @@ internal class DesktopDiscordSession(
                     fallbackJob?.cancelAndJoin()
                     fallbackJob = null
                     fallbackRevision = -1L
+                    fallbackFailedAtNanos = null
                 }
                 if (connection == null) {
                     connection = try { connect() } catch (cancelled: CancellationException) {
@@ -115,14 +121,35 @@ internal class DesktopDiscordSession(
                     if (connection != null) fallbackRevision = -1L
                     sentRevision = -1L
                 }
+                if (connection != null && fallbackJob != null) {
+                    fallbackJob?.cancelAndJoin()
+                    fallbackJob = null
+                    fallbackRevision = -1L
+                }
+                fallbackCompletedAtNanos.getAndSet(null)?.let {
+                    lastPublishAtNanos = it
+                    if (!fallbackSucceeded.get() && frame.value?.revision == fallbackRevision) {
+                        fallbackFailedAtNanos = it
+                    }
+                }
                 val snapshot = frame.value
+                val budgetWaitMs = lastPublishAtNanos?.let {
+                    (minPublishIntervalMs - (System.nanoTime() - it) / 1_000_000).coerceAtLeast(0)
+                } ?: 0
+                val retryWaitMs = if (connection == null) fallbackFailedAtNanos?.let {
+                    (retryDelayMs - (System.nanoTime() - it) / 1_000_000).coerceAtLeast(0)
+                } ?: 0 else 0
+                val waitMs = maxOf(budgetWaitMs, retryWaitMs)
+                if (snapshot != null && waitMs > 0) {
+                    // Re-read frame after waiting: rapid seeks replace the pending timestamps.
+                    withTimeoutOrNull(waitMs) { changed.receive() }
+                    continue
+                }
                 try {
                     val local = connection
                     if (local != null && snapshot != null) {
-                        fallbackJob?.cancelAndJoin()
-                        fallbackJob = null
-                        fallbackRevision = -1L
                         ensureCurrent(desired)
+                        lastPublishAtNanos = System.nanoTime()
                         if (snapshot.revision != sentRevision) {
                             local.setActivity(snapshot.activity)
                             sentRevision = snapshot.revision
@@ -131,10 +158,12 @@ internal class DesktopDiscordSession(
                         } else {
                             local.checkActivity(snapshot.activity)
                         }
+                        lastPublishAtNanos = System.nanoTime()
                     } else if (local == null && snapshot != null &&
                         (snapshot.revision != fallbackRevision ||
                             (fallbackJob?.isCompleted == true && !fallbackSucceeded.get()))) {
                         fallbackRevision = snapshot.revision
+                        lastPublishAtNanos = System.nanoTime()
                         val succeeded = AtomicBoolean(false)
                         fallbackSucceeded = succeeded
                         fallbackJob = launch {
@@ -145,6 +174,9 @@ internal class DesktopDiscordSession(
                                 throw cancelled
                             } catch (_: Exception) {
                                 // The owner retries after its backoff; no stale send is retained.
+                            } finally {
+                                fallbackCompletedAtNanos.set(System.nanoTime())
+                                changed.trySend(Unit)
                             }
                         }
                     }

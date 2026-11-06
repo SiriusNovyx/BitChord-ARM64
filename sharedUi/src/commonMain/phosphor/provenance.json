@@ -1,0 +1,1179 @@
+{
+  "repository": "https://github.com/phosphor-icons/core",
+  "commit": "2b75f3ad12b420c9504ef05df8d2564a28f8500e",
+  "license": "MIT",
+  "icons": {
+    "AccountPlaceholder": {
+      "name": "user-circle",
+      "weight": "fill",
+      "auto_mirror": false
+    },
+    "Add": {
+      "name": "plus",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "AddAccount": {
+      "name": "user-circle-plus",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Advanced": {
+      "name": "wrench",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Animation": {
+      "name": "person-simple-walk",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Appearance": {
+      "name": "paint-brush",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Apps": {
+      "name": "squares-four",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "ArrowBack": {
+      "name": "caret-left",
+      "weight": "regular",
+      "auto_mirror": true
+    },
+    "AutoAwesome": {
+      "name": "sparkle",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "BarChart": {
+      "name": "chart-bar",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Bluetooth": {
+      "name": "bluetooth",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "BlurOff": {
+      "name": "drop",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "BlurOn": {
+      "name": "drop",
+      "weight": "fill",
+      "auto_mirror": false
+    },
+    "Brightness": {
+      "name": "sun",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Cached": {
+      "name": "arrows-clockwise",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Check": {
+      "name": "check",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "ChevronRight": {
+      "name": "caret-right",
+      "weight": "regular",
+      "auto_mirror": true
+    },
+    "Clock": {
+      "name": "clock",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Cloud": {
+      "name": "cloud",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "CloudDone": {
+      "name": "cloud-check",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "CloudOff": {
+      "name": "cloud-slash",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "ContentCopy": {
+      "name": "copy",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "DeleteSweep": {
+      "name": "trash",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Dns": {
+      "name": "hard-drives",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Download": {
+      "name": "arrow-circle-down",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "DragHandle": {
+      "name": "list",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Draw": {
+      "name": "pen-nib",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "ErrorOutline": {
+      "name": "warning-circle",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Extension": {
+      "name": "puzzle-piece",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "FileDownload": {
+      "name": "file-arrow-down",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "FileDownloadOff": {
+      "name": "cloud-slash",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "FileUpload": {
+      "name": "file-arrow-up",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "FilterAlt": {
+      "name": "funnel",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Folder": {
+      "name": "folder",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Font": {
+      "name": "text-aa",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "FrameRate": {
+      "name": "timer",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Fullscreen": {
+      "name": "arrows-out",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Gradient": {
+      "name": "circle-half",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "GraphicEq": {
+      "name": "waveform",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Groups": {
+      "name": "users",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "History": {
+      "name": "clock-counter-clockwise",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Key": {
+      "name": "key",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Label": {
+      "name": "tag",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Language": {
+      "name": "globe",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "LibraryMusic": {
+      "name": "music-notes",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "LocalOffer": {
+      "name": "tag",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Lock": {
+      "name": "lock",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Login": {
+      "name": "sign-in",
+      "weight": "regular",
+      "auto_mirror": true
+    },
+    "Logout": {
+      "name": "sign-out",
+      "weight": "regular",
+      "auto_mirror": true
+    },
+    "ManageAccounts": {
+      "name": "user-gear",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Miscellaneous": {
+      "name": "dots-three-circle",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "MotionPhotosOff": {
+      "name": "video-camera-slash",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "MusicNote": {
+      "name": "music-note",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "MusicOff": {
+      "name": "music-notes-minus",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Notes": {
+      "name": "text-align-left",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Performance": {
+      "name": "gauge",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Person": {
+      "name": "user",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "PlayCircle": {
+      "name": "play-circle",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "PlaylistPlay": {
+      "name": "playlist",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "RadioButtonChecked": {
+      "name": "radio-button",
+      "weight": "fill",
+      "auto_mirror": false
+    },
+    "Settings": {
+      "name": "gear",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Share": {
+      "name": "export",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "ShowChart": {
+      "name": "chart-line-up",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "SignalCellularAlt": {
+      "name": "cell-signal-high",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "SmartButton": {
+      "name": "hand-tap",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Storage": {
+      "name": "hard-drive",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "SurroundSound": {
+      "name": "speaker-hifi",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "SwitchAccount": {
+      "name": "user-circle",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Translate": {
+      "name": "translate",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Tune": {
+      "name": "sliders-horizontal",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Usb": {
+      "name": "usb",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "VisibilityOff": {
+      "name": "eye-slash",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "VolumeOff": {
+      "name": "speaker-slash",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "VolumeUp": {
+      "name": "speaker-high",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Warning": {
+      "name": "warning",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Watch": {
+      "name": "watch",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Waves": {
+      "name": "waves",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "WebAssetOff": {
+      "name": "prohibit",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Wifi": {
+      "name": "wifi-high",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "YourData": {
+      "name": "archive",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "AddToPlaylist": {
+      "name": "list-plus",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Album": {
+      "name": "vinyl-record",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Artist": {
+      "name": "microphone-stage",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Bug": {
+      "name": "bug",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Close": {
+      "name": "x",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Downloaded": {
+      "name": "check-circle",
+      "weight": "fill",
+      "auto_mirror": false
+    },
+    "Heart": {
+      "name": "heart",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "HeartFill": {
+      "name": "heart",
+      "weight": "fill",
+      "auto_mirror": false
+    },
+    "Info": {
+      "name": "info",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Open": {
+      "name": "caret-right",
+      "weight": "regular",
+      "auto_mirror": true
+    },
+    "Pencil": {
+      "name": "pencil-simple",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Pin": {
+      "name": "push-pin",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Play": {
+      "name": "play",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "PlayLast": {
+      "name": "queue",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "PlayNext": {
+      "name": "playlist",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Radio": {
+      "name": "broadcast",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "RemoveFromPlaylist": {
+      "name": "minus-circle",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Reorder": {
+      "name": "arrows-down-up",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Revert": {
+      "name": "arrow-u-up-left",
+      "weight": "regular",
+      "auto_mirror": true
+    },
+    "Shuffle": {
+      "name": "shuffle",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "SleepTimer": {
+      "name": "moon-stars",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Sliders": {
+      "name": "sliders-horizontal",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Star": {
+      "name": "star",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "StarFill": {
+      "name": "star",
+      "weight": "fill",
+      "auto_mirror": false
+    },
+    "Trash": {
+      "name": "trash",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Upgrade": {
+      "name": "sparkle",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Upload": {
+      "name": "arrow-circle-up",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Video": {
+      "name": "video-camera",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "Dislike": {
+      "name": "heart-break",
+      "weight": "regular",
+      "auto_mirror": false
+    },
+    "DislikeFill": {
+      "name": "heart-break",
+      "weight": "fill",
+      "auto_mirror": false
+    }
+  },
+  "license_sha256": "b5b1f1da112d18ea2147decfd48ddc1bf2b5aeb6c265381579340e95b15a2bb2",
+  "license_git_blob": "78c9810819776e135d314adc0ff26eda7bec8b38",
+  "assets": [
+    {
+      "path": "assets/fill/user-circle-fill.svg",
+      "git_blob": "b7b03c29758b5fc610b4989f718d0fc85dd36205",
+      "sha256": "4e16cdba116195993e6398bb097e7c4b354fb129fafdf2b56fd4b7c069f440d3",
+      "bytes": 455
+    },
+    {
+      "path": "assets/regular/plus.svg",
+      "git_blob": "25ad5e32286bc1e69fcd7b462a5dff378d25a509",
+      "sha256": "d688feb9dd2e41c1721d6906a05a2a42e18cd774762fe706d72b2bdfd91cddc4",
+      "bytes": 212
+    },
+    {
+      "path": "assets/regular/user-circle-plus.svg",
+      "git_blob": "99158477d8ea3745b4dfcc77f6e07466384c86cb",
+      "sha256": "21d922641938f19ca94309c5185675aa6a9b0058020be9b40231777078e0f0bb",
+      "bytes": 615
+    },
+    {
+      "path": "assets/regular/wrench.svg",
+      "git_blob": "c2dd87fbe7e57db5844ef5ceb6e36b6bc5f660cf",
+      "sha256": "690d657aa4a9c99d620583cf6247cfefa5372c10e2bc60e9255a3ce19e3e9c47",
+      "bytes": 653
+    },
+    {
+      "path": "assets/regular/person-simple-walk.svg",
+      "git_blob": "72fb249bbe37d4975d9309a84ff36c0a85cf5bec",
+      "sha256": "c64cd5214dd7c4821582d24e2bc21d18e8d0058b77ee0eb3f3f17c0043c635e5",
+      "bytes": 631
+    },
+    {
+      "path": "assets/regular/paint-brush.svg",
+      "git_blob": "6745c7113cc3ad21010cde79a0634d8ff489aaa8",
+      "sha256": "71f96a0b1a20e671a4af66d3b6bfaa41cf01778ad858193515d0268f07666972",
+      "bytes": 568
+    },
+    {
+      "path": "assets/regular/squares-four.svg",
+      "git_blob": "64789418cd0bd78e9814756d27641523b56b43da",
+      "sha256": "f70d6b20e08e028ab5b1714077681910a2431092cf7a23b82366ddaec554ab87",
+      "bytes": 552
+    },
+    {
+      "path": "assets/regular/caret-left.svg",
+      "git_blob": "c68102c99751557b2777c9d243efdda603ec17f6",
+      "sha256": "623bf248fe21a8170344e168aaac2e174119cea5d7c5d0fb0dc84f581009475f",
+      "bytes": 200
+    },
+    {
+      "path": "assets/regular/sparkle.svg",
+      "git_blob": "f64e8d10ab208816555549d8f16611a284f4f900",
+      "sha256": "9e2c17a26564098cb48dd95737a83c742156f755f13cedaa30f9d864d0e3eb76",
+      "bytes": 666
+    },
+    {
+      "path": "assets/regular/chart-bar.svg",
+      "git_blob": "02451a049efeeb35a896b1840c20b24d721ca912",
+      "sha256": "d161e503af4f5386a370ffd742d19d85e98625fd6d6eadbabbdb36d58dcca22c",
+      "bytes": 282
+    },
+    {
+      "path": "assets/regular/bluetooth.svg",
+      "git_blob": "718bc0a8594fe031f13f3e18e45f4f3a32c274ba",
+      "sha256": "b7acd2d97b06217902bfe61cafd4dda5432a0823ebee5cca8a26175efab46b91",
+      "bytes": 347
+    },
+    {
+      "path": "assets/regular/drop.svg",
+      "git_blob": "8b2b275503bdf46cc4fda066d43ab8a402a394ac",
+      "sha256": "2b5396d046ce74fc645c6064226dd4875cf5e98eb1c7372611bf069f1adbc5aa",
+      "bytes": 518
+    },
+    {
+      "path": "assets/fill/drop-fill.svg",
+      "git_blob": "d7081362e99282da1177e1a9c1f0ba9dd4966fed",
+      "sha256": "547974bcf9a14a058c7622a2412bdf25700bd83e610128829f96687e7f8499e6",
+      "bytes": 409
+    },
+    {
+      "path": "assets/regular/sun.svg",
+      "git_blob": "2a97d0169fa8fa6ec5f5fd7b2bd7c0a7a6c74005",
+      "sha256": "8df1c7b747774f8b2c1fe353b1b785c74aac35bfa50f2ed7d8d9a85a4191b2ac",
+      "bytes": 685
+    },
+    {
+      "path": "assets/regular/arrows-clockwise.svg",
+      "git_blob": "aaae1464d6c4d1d973376cff2ccae5aba003f9a3",
+      "sha256": "2e80fbc9c5c37553934c9ebbd6324bf7fabe9a4b4d7c2445d99edfce55cc22df",
+      "bytes": 503
+    },
+    {
+      "path": "assets/regular/check.svg",
+      "git_blob": "04b2e24229662362e380d5b08ed7e5e0498f105c",
+      "sha256": "cbb89a8c42f283d4f846eb935e05d88c1be04462f16480e068c0f82b9ce40b12",
+      "bytes": 215
+    },
+    {
+      "path": "assets/regular/caret-right.svg",
+      "git_blob": "d73dd5d9de441ed68d05ce97f3a714e9f3f69323",
+      "sha256": "e6dec01e074807965b7f3146b976a9b5e82c31d9c2c88aeb52e77cc2ab16c1d7",
+      "bytes": 219
+    },
+    {
+      "path": "assets/regular/clock.svg",
+      "git_blob": "decf49eea1e2d6cdb5b569c140f8dd89b294a963",
+      "sha256": "b8c6c2899d2b9af48a55ba02ba6d7faf89b757915772dd24f5397f7b0d02aa5c",
+      "bytes": 287
+    },
+    {
+      "path": "assets/regular/cloud.svg",
+      "git_blob": "3aa44d4a47475fa94c9ddffc59e8387ae985816e",
+      "sha256": "a72f1f201500924d20a30d7190a3277e411ab526d5b71a6f6a91b0812a09c669",
+      "bytes": 277
+    },
+    {
+      "path": "assets/regular/cloud-check.svg",
+      "git_blob": "83b758f03deb457946da4ce69ba2366d0653b758",
+      "sha256": "d9b0bdd1047bb0bee3c0436f2b14ccc0f35c377c3cff57ae0ac0e356303642e5",
+      "bytes": 409
+    },
+    {
+      "path": "assets/regular/cloud-slash.svg",
+      "git_blob": "15e71c4eb4563e18edcd13db9689d4a88dca253e",
+      "sha256": "23fb09ad9f89341af151eb9ec791fa21d3e644e560797cd7843ca86459f70ac8",
+      "bytes": 526
+    },
+    {
+      "path": "assets/regular/copy.svg",
+      "git_blob": "8f3dd2ec9f2716aa4049da502f410d2c46f93789",
+      "sha256": "5a892fc6a72866e60c67db2088a87653cf44b57b1a5d183b36e950cdc5dd66b3",
+      "bytes": 279
+    },
+    {
+      "path": "assets/regular/trash.svg",
+      "git_blob": "9f963931ad750f213310e861dc5c9adff0f9989a",
+      "sha256": "e6a830c0409f9e101e3695c981eef98427d39fd01f502b9cbd6900930b01f19c",
+      "bytes": 391
+    },
+    {
+      "path": "assets/regular/hard-drives.svg",
+      "git_blob": "cf56552099fe602fb52017170a80f26aaa9b89a8",
+      "sha256": "c4ba6f3519182785a6b99d04d2d0fdbbb0bcb54f1e3c916c49e1af59ea77b6f2",
+      "bytes": 418
+    },
+    {
+      "path": "assets/regular/arrow-circle-down.svg",
+      "git_blob": "154ca56c2a842743d33aab5abf8f671fd09604bd",
+      "sha256": "023031c9c7858af9f614b5bc5e8f5f511d59dc4990cfab5ef5c6cd65d1b90f3b",
+      "bytes": 362
+    },
+    {
+      "path": "assets/regular/list.svg",
+      "git_blob": "88254fb074f7bb4647338813fadc7610680f286c",
+      "sha256": "fb1851842c74b40a3f42ce3d6ae0e67ede556b624218e79c0f4ead7d9ceec51f",
+      "bytes": 253
+    },
+    {
+      "path": "assets/regular/pen-nib.svg",
+      "git_blob": "2aadeecb43dbc8e1a06a35188486781a5be3eda7",
+      "sha256": "1dd351c36da3639df0efe0c73d2524f5c00ca3e1ca2c8f66cc48d0e60f162736",
+      "bytes": 548
+    },
+    {
+      "path": "assets/regular/warning-circle.svg",
+      "git_blob": "fbfeb9effeb2a0eb83645f262583b8bca76cad49",
+      "sha256": "e48a90760a68659fd3f06dd9187e471aead4877c72e915339071b2c7f7bd714c",
+      "bytes": 294
+    },
+    {
+      "path": "assets/regular/puzzle-piece.svg",
+      "git_blob": "a0240887f9e50d324be881643e813d59eab0f8a8",
+      "sha256": "65f4ee4f170f7d9771917c4c271e21525d1af7c478b2700b8d0fcbb91683839c",
+      "bytes": 774
+    },
+    {
+      "path": "assets/regular/file-arrow-down.svg",
+      "git_blob": "ae2cf4ac6f900dc97f748c3f03e09062f9de49b9",
+      "sha256": "b08faaac9a2dae480b6f1decd2133ee2489450393191b0eb9490d47aeabf6d91",
+      "bytes": 454
+    },
+    {
+      "path": "assets/regular/file-arrow-up.svg",
+      "git_blob": "ea1026ec28cd38bd78357f594e7f5ee6b53874e9",
+      "sha256": "b7127fb44729f481bb574b3e3ddfff1085de38bfe82d112c743f887ba7352da2",
+      "bytes": 428
+    },
+    {
+      "path": "assets/regular/funnel.svg",
+      "git_blob": "fd00096509419fcfb8b86432989bb66478818d83",
+      "sha256": "26b847aa9f8566707443669502dcf08bf0a2d1d3cfb2dc1136842f4033104abb",
+      "bytes": 385
+    },
+    {
+      "path": "assets/regular/folder.svg",
+      "git_blob": "df74375256f3c6e8a3057d861d380ee6f12a1983",
+      "sha256": "4a882bcd4a91ae0a01887024f08d358932f183b6b171e87a3e48c5910364d507",
+      "bytes": 305
+    },
+    {
+      "path": "assets/regular/text-aa.svg",
+      "git_blob": "ec412dc7dc832fbe4e239c541aae601f6398db77",
+      "sha256": "e964560ce335191f6bfc660ee8be894d6459561516152f9fceaddb0b8d00b0d2",
+      "bytes": 562
+    },
+    {
+      "path": "assets/regular/timer.svg",
+      "git_blob": "7a3a3f9d255a08650f4ce6fbad837926423ad5bf",
+      "sha256": "eccb04ff7903c451948aba91d91606eba71d9e050ed52b9e14a0e11199379d0e",
+      "bytes": 351
+    },
+    {
+      "path": "assets/regular/arrows-out.svg",
+      "git_blob": "90251325b02dda27da2eb88f0a5199bb456ebb32",
+      "sha256": "f6cc35278b35b8bf1ab115ad65ad9925b75fc014eb47e81169a04cd24c6417fd",
+      "bytes": 570
+    },
+    {
+      "path": "assets/regular/circle-half.svg",
+      "git_blob": "7c8d2d45bec38f0800dea13c62680957db1d63b4",
+      "sha256": "4e5376acc240190bf951be566c4649b69936c928f679eba6793412295bb90736",
+      "bytes": 396
+    },
+    {
+      "path": "assets/regular/waveform.svg",
+      "git_blob": "97e63bc3a802eb63404bc14aaf8e51969d846434",
+      "sha256": "8f6a47cff9b0fb3a8f25fe411b9cc1b24d063d6577c8d07cc53b0e9b080afaa0",
+      "bytes": 380
+    },
+    {
+      "path": "assets/regular/users.svg",
+      "git_blob": "e53d895bff3a06dfcbf3300a5a7f131823529d4d",
+      "sha256": "b3385e4c6aa03f7e16d1b03887c2cdff9900f5a7edbd5ea5176055938ccfb908",
+      "bytes": 506
+    },
+    {
+      "path": "assets/regular/clock-counter-clockwise.svg",
+      "git_blob": "d05eb178d06a2ba9509196f3d7fddcd596cff1ae",
+      "sha256": "06aa1cb0d2664789232f4addb1c5932c8ce14e48465c8e8fb09a651b619b44e3",
+      "bytes": 409
+    },
+    {
+      "path": "assets/regular/key.svg",
+      "git_blob": "5aaa6be859a6211482ec20a01caf49e5611637b2",
+      "sha256": "61694102f24a2eb4ce68f337fb6bf81090aef219328cb10dc2bd3f3c9e2ea266",
+      "bytes": 640
+    },
+    {
+      "path": "assets/regular/tag.svg",
+      "git_blob": "eecf8bd29a8f602afe520d2cd2c792290a8f1b51",
+      "sha256": "56633631b2e56436c33010c432f5da46533d2cfcae9773e694ee90ad43d96d69",
+      "bytes": 345
+    },
+    {
+      "path": "assets/regular/globe.svg",
+      "git_blob": "83b5ba0ffd2ec882034f4aa357ab80ca76063f4d",
+      "sha256": "3b53d207c09fc72de699c8b2149892e065b570b3ae144412ae53244b0a0f7977",
+      "bytes": 856
+    },
+    {
+      "path": "assets/regular/music-notes.svg",
+      "git_blob": "af2764ad4e01486548075b10a25c3b1ecfcb7c4f",
+      "sha256": "b991d76e24e781b864f9ad8b7aa14e516d4fd851871a979928917e20d492eca0",
+      "bytes": 370
+    },
+    {
+      "path": "assets/regular/lock.svg",
+      "git_blob": "07201fd8a2afb0d00b96fcf8475a2b168e07762e",
+      "sha256": "7f9e0acc09a417a48328cd5b74e95de98989c5af1710ca5da705179da75c72d9",
+      "bytes": 321
+    },
+    {
+      "path": "assets/regular/sign-in.svg",
+      "git_blob": "bc5065f13d71a73e602b0cebae8dab17b3ffdaf8",
+      "sha256": "4f9ac62582c9319778af5aef0865ba15b777378d222f4475be72ba1115bba076",
+      "bytes": 333
+    },
+    {
+      "path": "assets/regular/sign-out.svg",
+      "git_blob": "9890a7d91628dea39e7cbae21b8ba6d517d08d1c",
+      "sha256": "511fe7958ef31f8904185631fd7045c11f35c8034a2a64ccb3bdcc4dfa81df77",
+      "bytes": 346
+    },
+    {
+      "path": "assets/regular/user-gear.svg",
+      "git_blob": "cbc1f58e92d3d9ec9b2e3c669b83c84daad822e9",
+      "sha256": "4091ced4f8297dbcd12a2b1993b0081667f6cdf9dbb31d1606543bd66ddb9bcc",
+      "bytes": 789
+    },
+    {
+      "path": "assets/regular/dots-three-circle.svg",
+      "git_blob": "7c2f9e48ce68bcce07db8ae2f4c265933e99e68b",
+      "sha256": "10f9bc60e36813e3135b6581f383b13a23569dfe4ba80f1c198f09e533b97650",
+      "bytes": 339
+    },
+    {
+      "path": "assets/regular/video-camera-slash.svg",
+      "git_blob": "f6dbb074f2bccefe0e4a89e441d82d2c1bd46295",
+      "sha256": "f319e2f86632e72ebcf6825632455c9ebdcb1defefcb53da75b5f2c225d22714",
+      "bytes": 469
+    },
+    {
+      "path": "assets/regular/music-note.svg",
+      "git_blob": "56398589fe2891865d108d60568ed059e79c3240",
+      "sha256": "433d99d789fa7f1f43fe9e75e68eb3c546ef7ea7a4c6545c73f2f48f32f376fa",
+      "bytes": 303
+    },
+    {
+      "path": "assets/regular/music-notes-minus.svg",
+      "git_blob": "e86cd5abbeef87f94f28d4317bb1b311437a992d",
+      "sha256": "13c0f4baec0276ee35da8a5c49f8a4fbbc95a4aa4588169ea6329828edcee461",
+      "bytes": 435
+    },
+    {
+      "path": "assets/regular/text-align-left.svg",
+      "git_blob": "2a0e54ebd674180e83540c49c87398a125196868",
+      "sha256": "4d166977720d3beb386288a8607fbb36134fef06fdd99496ab09cf2d2da211b5",
+      "bytes": 292
+    },
+    {
+      "path": "assets/regular/gauge.svg",
+      "git_blob": "a6d5129212c9345db152690eae796a82984cef5b",
+      "sha256": "053e22a3b54c3baa7997bd0fddbf2cc35cbdd2662842b553d13d9f2a58c67f4a",
+      "bytes": 499
+    },
+    {
+      "path": "assets/regular/user.svg",
+      "git_blob": "d560c5d59bb9898491ce9aa35e3ca542557d34fe",
+      "sha256": "787434f7fef95f20e137d309d3c6b8b471548c55c9dfc137ae10625d70959d11",
+      "bytes": 340
+    },
+    {
+      "path": "assets/regular/play-circle.svg",
+      "git_blob": "410980a5f937a4d2edb5c74fe4807d8d08cc193e",
+      "sha256": "378c08eea12bc0dc63ee7914bcfe8b9764716abb7f760fe044c90381a3e9c3c2",
+      "bytes": 320
+    },
+    {
+      "path": "assets/regular/playlist.svg",
+      "git_blob": "c7ad74718d89feca7cadd8a2362e1f02ca064ccd",
+      "sha256": "fc711b95835ee28f0fcd3654544c2898d8cafcaacbd13a50b1977ae657fdd578",
+      "bytes": 418
+    },
+    {
+      "path": "assets/fill/radio-button-fill.svg",
+      "git_blob": "52aa0bb8da4ebc20699425ebc62dbbb72bddd406",
+      "sha256": "929cf0f3ca24d83caf70abf6b30161a9763bddace68ea9cce2c831a76fc459ee",
+      "bytes": 257
+    },
+    {
+      "path": "assets/regular/gear.svg",
+      "git_blob": "a7e5860f17b6303a7eccb8dfaa180d95834b0121",
+      "sha256": "5c0cb3ba307c72babf78d952d9140c682ff30307fedc7fbb87c9a293c1e2fd64",
+      "bytes": 1977
+    },
+    {
+      "path": "assets/regular/export.svg",
+      "git_blob": "871588b3f07a92e4dbc6f8907cfe247f3641eec0",
+      "sha256": "b3323cae86c93d7a4d344e921dc1500f97a73c66e5d9f0e6c46aab64e4a6f616",
+      "bytes": 383
+    },
+    {
+      "path": "assets/regular/chart-line-up.svg",
+      "git_blob": "f300b5c3d9cac1c2f57fd07d7baf6016cd5583be",
+      "sha256": "1bcf22abc6fe9cfb6195f0781d3056509aade1a35d4279ed46de7f282cca8937",
+      "bytes": 350
+    },
+    {
+      "path": "assets/regular/cell-signal-high.svg",
+      "git_blob": "e063878245c5cc7817bb58abdd775c736e2dd703",
+      "sha256": "b2f818229dae78232fb1da84b7f79c632d81e314a62161027ac1bcaebbe88483",
+      "bytes": 327
+    },
+    {
+      "path": "assets/regular/hand-tap.svg",
+      "git_blob": "6b39e94ec08ffbf5d88dac95fbbe2a494b59059e",
+      "sha256": "32c4c4f80fbbe5ee6bf45a6769da96466dcafddf79965c2bbdb7635fab405409",
+      "bytes": 622
+    },
+    {
+      "path": "assets/regular/hard-drive.svg",
+      "git_blob": "75932777b1892e8be4e69376c4e40c6d9ec0250e",
+      "sha256": "6f113d180d03e93df3dd8d650e85dbb11547537efc333b261d32f5b3dc47d2e8",
+      "bytes": 260
+    },
+    {
+      "path": "assets/regular/speaker-hifi.svg",
+      "git_blob": "17d1f450bd699f409ce553be7c35b68e4387631d",
+      "sha256": "582ba467cd79b96d3c4baae867223ae906c64c46f71e2f5268f89a62bf934427",
+      "bytes": 347
+    },
+    {
+      "path": "assets/regular/user-circle.svg",
+      "git_blob": "485fd0de7cd47fc86abacc9de848f7f5d8acd596",
+      "sha256": "5aee25838c1915058940900df322afc36b76f4ea7e48499c33603cf121258b2a",
+      "bytes": 376
+    },
+    {
+      "path": "assets/regular/translate.svg",
+      "git_blob": "74c2a7109e19a749e32df5fa6f7a914440df8082",
+      "sha256": "1e49dc31f3a172c9c7c67361511ee5314598b3f5b32788219325f589487f76c5",
+      "bytes": 610
+    },
+    {
+      "path": "assets/regular/sliders-horizontal.svg",
+      "git_blob": "4aa2aa34343e436010a1791329f709c3271e6a4c",
+      "sha256": "1d937baa3bc51ec4052364edf30cf8991d550920534f5d413eb9f60535cc1916",
+      "bytes": 360
+    },
+    {
+      "path": "assets/regular/usb.svg",
+      "git_blob": "d5ce80fcc1f26966992c6c5f594a1fe02d5d36d3",
+      "sha256": "07fb1516e718942905515ae2ce76e9d1e9790dc0c4925ae7d9b10ae765e1e23e",
+      "bytes": 469
+    },
+    {
+      "path": "assets/regular/eye-slash.svg",
+      "git_blob": "7efa1c5fdbb3244af1a486d62c1a0d3b4a1bb4e5",
+      "sha256": "070b0296a7df89ebf4cec12436e323b5531d458aa9aed3608924085889e1fd17",
+      "bytes": 1000
+    },
+    {
+      "path": "assets/regular/speaker-slash.svg",
+      "git_blob": "ddb9bfd717af0775acdce228323107c1a67bd007",
+      "sha256": "66b75267ea8ba8759a70e4c8312bfe06b834fc8fcf0dd1710d9819877f0c8013",
+      "bytes": 647
+    },
+    {
+      "path": "assets/regular/speaker-high.svg",
+      "git_blob": "2c9885bd1e50e41fbfd25673e3802099d895f917",
+      "sha256": "caca5fc1ee8489ac19232301d2c96f6d4048802491d75d761bbb89d5c98e459d",
+      "bytes": 514
+    },
+    {
+      "path": "assets/regular/warning.svg",
+      "git_blob": "1915993bba3adb77556e20c5cd33565f3f0f05cc",
+      "sha256": "047c8edbdfddb9f1692bbf56acc85b7e4649b567c60eb39470e98e4f9ddc6a2e",
+      "bytes": 543
+    },
+    {
+      "path": "assets/regular/watch.svg",
+      "git_blob": "a919c8d25dd406f470cffa973dbf942b5d6efece",
+      "sha256": "485ec06c2a37636766b357f2e0888781c310f99f70d10e92f9e7d1906bcdc267",
+      "bytes": 570
+    },
+    {
+      "path": "assets/regular/waves.svg",
+      "git_blob": "85d255ca053887bdefe495ef2394ee42cb62938a",
+      "sha256": "de913b2bff765875493325023e29d261ecd5b0c1de81b797ebcdf7b8c09c66e0",
+      "bytes": 766
+    },
+    {
+      "path": "assets/regular/prohibit.svg",
+      "git_blob": "eb8d2e3e91db00f07e6a515ed5ae337260a2fe29",
+      "sha256": "7dab6c9d295b578a7ec5df0b21c2e5ee56869ccd76ea23e2696d74fa7ae5be59",
+      "bytes": 296
+    },
+    {
+      "path": "assets/regular/wifi-high.svg",
+      "git_blob": "2ca153e6cf11f02dddab6f295d6411613270beca",
+      "sha256": "d11ce9b83f063b6d12d3c8ff93cce7d601fe19ee1d6e5ba828b4a764b100519f",
+      "bytes": 467
+    },
+    {
+      "path": "assets/regular/archive.svg",
+      "git_blob": "bb40179a97ca5e308b0a9ebd54f4b77edb6f309d",
+      "sha256": "bde81c0c44e80a7b8bf97f29ec11488c1b48998f2f74b2eb29e13ef8c1975e75",
+      "bytes": 339
+    },
+    {
+      "path": "assets/regular/list-plus.svg",
+      "git_blob": "29da2534b53fae8284888b51088a5d4027dadc96",
+      "sha256": "1ccf408d250463a883aa460887949041d2de8e8085ba19b607e8226cb7ddad12",
+      "bytes": 341
+    },
+    {
+      "path": "assets/regular/vinyl-record.svg",
+      "git_blob": "796d74fdb3bf14a4b3cf057683049005720cf60d",
+      "sha256": "9f670fdd8ae1b144f372b97b9be8acd0cc0d796d2e78607b58a4baa2683461e2",
+      "bytes": 466
+    },
+    {
+      "path": "assets/regular/microphone-stage.svg",
+      "git_blob": "c29d75d1545edd130475f8e78433f3974160b464",
+      "sha256": "aca9c779a4d9df6e02468118d5d26c7e9878807ee8ac0f0be1ab566fe27a3dfa",
+      "bytes": 580
+    },
+    {
+      "path": "assets/regular/bug.svg",
+      "git_blob": "d562a09ee14c3fce520f5d0d47a6f4f6576137a8",
+      "sha256": "05041640c72e5cccc75ffe9b5138ff173c8097ee75183f231deeadcdf108dd0a",
+      "bytes": 724
+    },
+    {
+      "path": "assets/regular/x.svg",
+      "git_blob": "2ee41d11cce14289f3b444174694acee017a4f9a",
+      "sha256": "7397b15e1fa66eaf6ff9b59fe91d483cb5c3bcf75b2fe052097ab6f0593b513a",
+      "bytes": 284
+    },
+    {
+      "path": "assets/fill/check-circle-fill.svg",
+      "git_blob": "ee1317cf4370e59a8a7d58ba305e709b74b3b625",
+      "sha256": "6ba676543869fddabb7a4ba7026fc51e14351455f4c095ea389b89d0e1d79708",
+      "bytes": 268
+    },
+    {
+      "path": "assets/regular/heart.svg",
+      "git_blob": "c7248cb254afd2e3617098ea27cd2274ccecd550",
+      "sha256": "312dee73d1d969631d5498012f619ccf4edbdf31e1be3e65af4f4f1b3ac1b2dd",
+      "bytes": 489
+    },
+    {
+      "path": "assets/fill/heart-fill.svg",
+      "git_blob": "21b6fb767912d609a17a1abb956c4e4e357ac334",
+      "sha256": "d90560d4f762f1b345bd2322cd1ef696926ffa74b0c1396933b6d926faf8341e",
+      "bytes": 292
+    },
+    {
+      "path": "assets/regular/info.svg",
+      "git_blob": "96369e212e83162dbeec73592b8220fb709fc980",
+      "sha256": "438a1f319d53d86e840af73fb7b1d224c9224a437b9fa449a4e2cb45a82a3552",
+      "bytes": 348
+    },
+    {
+      "path": "assets/regular/pencil-simple.svg",
+      "git_blob": "2641b0cc9685f400a5117ae7d9c4e6ef169c7344",
+      "sha256": "999530da442f44d8cf0054364373d16150f3e082c2ac294a4988a9c3a4295c28",
+      "bytes": 348
+    },
+    {
+      "path": "assets/regular/push-pin.svg",
+      "git_blob": "26dd7b80c9d4b6265ac9d14aa1a36a7092fe28be",
+      "sha256": "64c2dc8e17ac0dc1107990c1843654804f7960c35c49acdb5df5c45286910de1",
+      "bytes": 608
+    },
+    {
+      "path": "assets/regular/play.svg",
+      "git_blob": "162db543d4c33571b92d19a7bf715bfd9fd4028c",
+      "sha256": "885b3ed2095889c4ff063dac35dc424cb9f6c00273ab44e2f90dc9dadbee661a",
+      "bytes": 293
+    },
+    {
+      "path": "assets/regular/queue.svg",
+      "git_blob": "91a0103138de861d81fe4a7544966650a697d7da",
+      "sha256": "afca8abc51d163ba1aa058888463146cceb0d131ad9654ed4f37253e19e429d6",
+      "bytes": 374
+    },
+    {
+      "path": "assets/regular/broadcast.svg",
+      "git_blob": "cb0522838fc9238e503274dc313ecc89ba28053b",
+      "sha256": "e8377f3bf952fc637ca1ca31d5ea6f0917f9195d0bca9b2bfa3d6201b09c59e9",
+      "bytes": 700
+    },
+    {
+      "path": "assets/regular/minus-circle.svg",
+      "git_blob": "1b85909d3b1efdfa0d485f0f4593f7465fa1b628",
+      "sha256": "969de9cfae81e75d377f932733c8d003e1ad7903afe7fee67b8aecccb0c08d4d",
+      "bytes": 266
+    },
+    {
+      "path": "assets/regular/arrows-down-up.svg",
+      "git_blob": "b9c507f12e7e74a242bb5c3e74bbbbff6f0e0fcc",
+      "sha256": "64046920e174a406b080ec61e040bf73bf231be019d92ce8caec14d2035e167d",
+      "bytes": 387
+    },
+    {
+      "path": "assets/regular/arrow-u-up-left.svg",
+      "git_blob": "72326c2d73e5e8868ce7a32fe47b2d120315ee6d",
+      "sha256": "37975867f2e89f745250d3601a5674ca37883a8d79f52abcb082beba4df28df7",
+      "bytes": 303
+    },
+    {
+      "path": "assets/regular/shuffle.svg",
+      "git_blob": "5e283416a990466f2c28fe82213ccd5a8f544dc2",
+      "sha256": "c3fdac72b005805ddf1078b858eecb55f288d7bc34573ffae276de02373bb6f2",
+      "bytes": 760
+    },
+    {
+      "path": "assets/regular/moon-stars.svg",
+      "git_blob": "505c112c3a3c690b23248f5e4bea9517b43bc0b3",
+      "sha256": "a87d9314c9313a719a3297985a9d8cd1c4aa4602490b9286d8caf5bec82c466d",
+      "bytes": 535
+    },
+    {
+      "path": "assets/regular/star.svg",
+      "git_blob": "4e640f4895f9b27bbcc29d23ee98ce70e8b7da1c",
+      "sha256": "165cd96e51d60442fb9c7aa89592fa6ef28f22d18368c85771be302c2e977101",
+      "bytes": 810
+    },
+    {
+      "path": "assets/fill/star-fill.svg",
+      "git_blob": "50c668bd294984b575316d37e9072a05007cb8c6",
+      "sha256": "42451b34121b695bdaab88fdcf3eacec9cda9ac36d222349609426dcb9f04b48",
+      "bytes": 356
+    },
+    {
+      "path": "assets/regular/arrow-circle-up.svg",
+      "git_blob": "12b8e72d494850c092e18b262d842dab02a8808f",
+      "sha256": "6c1aaac8b3f72b760bb5e9c887e0e2b676fc62c3a66c38ce39d48b30da897a46",
+      "bytes": 338
+    },
+    {
+      "path": "assets/regular/video-camera.svg",
+      "git_blob": "de861f35c8d77607563c729e40539bb994966dc5",
+      "sha256": "3c9eaa197d77d45496d35be0a750095b643cf7a3685e3b067049b587368acce2",
+      "bytes": 352
+    },
+    {
+      "path": "assets/regular/heart-break.svg",
+      "git_blob": "9b706efd402a523490e4bac8de55090cdb3d3301",
+      "sha256": "483d686dd1d914342e49ac53345295e0181efeca10cee4785d673cbcd11ea292",
+      "bytes": 538
+    },
+    {
+      "path": "assets/fill/heart-break-fill.svg",
+      "git_blob": "fb23d9635552f255572dc0d4900273f127d4e50a",
+      "sha256": "09ef5651eb141e11fd7b5a31c0ce48275806c11e0e96922f0c49023f8cebd136",
+      "bytes": 429
+    }
+  ]
+}
